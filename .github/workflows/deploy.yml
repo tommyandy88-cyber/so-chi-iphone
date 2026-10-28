@@ -1,0 +1,40 @@
+name: Triển khai Sổ Chi (GitHub Pages)
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: pages
+  cancel-in-progress: true
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Lấy mã nguồn
+        uses: actions/checkout@v4
+      - name: Kiểm tra và chỉ đóng gói mã nguồn website tĩnh
+        run: |
+          set -eu
+          test -s index.html
+          test -s sw.js
+          python3 -m json.tool manifest.webmanifest >/dev/null
+          grep -Fq 'so_chi_v01' index.html
+          node --check sw.js
+          mkdir -p _pages_public
+          cp index.html manifest.webmanifest sw.js icon.svg icon-192.png icon-512.png apple-touch-icon.png .nojekyll _pages_public/
+      - name: Cấu hình Pages
+        uses: actions/configure-pages@v5
+      - name: Tạo artifact chỉ chứa 8 tệp website tĩnh (không gồm dữ liệu thử, bản sao lưu hay ảnh bill)
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: ./_pages_public
+      - name: Triển khai HTTPS
+        id: deployment
+        uses: actions/deploy-pages@v4
