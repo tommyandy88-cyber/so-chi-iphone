@@ -4,7 +4,7 @@ on:
     branches: [main]
   workflow_dispatch:
 permissions:
-  contents: write
+  contents: read
   pages: write
   id-token: write
 concurrency:
@@ -19,22 +19,15 @@ jobs:
     steps:
       - name: Lấy mã nguồn
         uses: actions/checkout@v4
-      - name: Tạo đúng ba biểu tượng PNG từ SVG gốc và lưu vào repository
-        run: |
-          set -eu
-          python3 -m venv /tmp/sochi-cairo
-          /tmp/sochi-cairo/bin/pip install --disable-pip-version-check -q CairoSVG==2.8.2
-          /tmp/sochi-cairo/bin/python -c "import cairosvg; from pathlib import Path; svg=Path('icon.svg').read_bytes(); [(Path(name).write_bytes(cairosvg.svg2png(bytestring=svg,output_width=size,output_height=size))) for name,size in [('apple-touch-icon.png',180),('icon-192.png',192),('icon-512.png',512)]]"
-          git add apple-touch-icon.png icon-192.png icon-512.png
-          if ! git diff --cached --quiet; then
-            git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -m "Add original SVG-rendered Sổ Chi icons [skip ci]"
-            git push origin HEAD:main
-          fi
       - name: Kiểm tra và chỉ đóng gói mã nguồn website tĩnh
         run: |
           set -eu
           test -s index.html
           test -s sw.js
+          test -s icon.svg
+          test -s icon-192.png
+          test -s icon-512.png
+          test -s apple-touch-icon.png
           python3 -m json.tool manifest.webmanifest >/dev/null
           grep -Fq 'so_chi_v01' index.html
           node --check sw.js
