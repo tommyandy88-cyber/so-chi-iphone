@@ -743,7 +743,7 @@ function onEdit(event){event.preventDefault();if(editIndex<0)return;try{
  }catch(e){showToast('Không thể lưu: '+e.message);}}
 function newSession(){
   if((entries.length||pendingReview)&&!confirm('Lưu phép tính hiện tại và bắt đầu phép tính mới? Câu chưa được xác nhận sẽ bị bỏ.'))return;
-  stopSpeech();
+  stopSpeech(false);
   pendingReview=null;saveReview();renderReview();
   if(entries.length){
     const calculated=calculate(entries);
