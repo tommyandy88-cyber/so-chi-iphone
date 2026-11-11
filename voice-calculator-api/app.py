@@ -1,4 +1,4 @@
-"""Vietnamese voice recognition backend (Moonshine Tiny Streaming, MIT).
+"""Vietnamese voice recognition backend (Moonshine Vietnamese Streaming).
 
 Protocol stays unchanged for the existing iPhone large-microphone frontend:
   WebSocket /ws, binary signed 16-bit mono PCM 16 kHz.
@@ -58,7 +58,7 @@ async def stream_probe():
         t=Transcriber(model_path=str(MODEL_PATH),model_arch=MODEL_ARCH)
         st=None
         try:
-            st=t.create_stream(update_interval=.25)
+            st=t
             st.start()
             st.add_audio([0.0]*8000,16000)
             st.stop()
@@ -97,6 +97,9 @@ async def receive_audio(ws: WebSocket):
         send_task=None
         started=time.monotonic()
         total_bytes=0
+        audio_packets=0
+        audio_peak=0.0
+        last_audio_status=0.0
         last_partial=0.0
 
         def enqueue(message):
@@ -118,6 +121,8 @@ async def receive_audio(ws: WebSocket):
             def on_line_completed(self,event):
                 value=str(event.line.text or "").strip()
                 if value:enqueue({"type":"final","text":value})
+            def on_error(self,event):
+                enqueue({"type":"error","message":"Bộ nhận dạng gặp lỗi trong phiên nghe."})
 
         async def send_results():
             while True:
@@ -133,10 +138,11 @@ async def receive_audio(ws: WebSocket):
         try:
             transcriber=await asyncio.to_thread(
                 Transcriber,model_path=str(MODEL_PATH),model_arch=MODEL_ARCH)
-            stream=transcriber.create_stream(update_interval=.25)
-            listener=Listener()  # Keep a strong reference for the whole WS session.
-            stream.add_listener(listener)
-            await asyncio.to_thread(stream.start)
+            # Use the documented one-input Transcriber API, rather than the
+            # multi-stream API; callbacks belong to the transcriber itself.
+            listener=Listener()
+            transcriber.add_listener(listener)
+            await asyncio.to_thread(transcriber.start)
             send_task=asyncio.create_task(send_results())
             await ws.send_json({"type":"ready","engine":"moonshine-tiny-streaming-vi"})
             while True:
@@ -154,12 +160,22 @@ async def receive_audio(ws: WebSocket):
                         break
                     # moonshine_voice processes incremental 32-bit floating point PCM.
                     samples=pcm_to_float(data)
-                    await asyncio.to_thread(stream.add_audio,samples,16000)
+                    audio_packets+=1
+                    audio_peak=max(audio_peak,max((abs(sample) for sample in samples),default=0.0))
+                    now=time.monotonic()
+                    if now-last_audio_status>=1.5:
+                        enqueue({"type":"audio-status",
+                                 "seconds":round(total_bytes/32000,1),
+                                 "packets":audio_packets,
+                                 "level":round(audio_peak*100)})
+                        last_audio_status=now
+                        audio_peak=0.0
+                    await asyncio.to_thread(transcriber.add_audio,samples,16000)
                 else:
                     try: kind=json.loads(packet.get("text") or "{}").get("type")
                     except (TypeError,ValueError):kind=None
                     if kind=="stop":
-                        await asyncio.to_thread(stream.stop)
+                        await asyncio.to_thread(transcriber.stop)
                         # Native event callbacks can arrive on a worker thread.
                         await asyncio.sleep(.12)
                         enqueue({"type":"stopped"})
@@ -175,10 +191,8 @@ async def receive_audio(ws: WebSocket):
                 try: await ws.send_json(message)
                 except Exception: pass
         finally:
-            if stream:
-                try:await asyncio.to_thread(stream.stop)
-                except Exception:pass
-                try:await asyncio.to_thread(stream.close)
+            if transcriber:
+                try:await asyncio.to_thread(transcriber.stop)
                 except Exception:pass
             if transcriber:
                 try:await asyncio.to_thread(transcriber.close)
