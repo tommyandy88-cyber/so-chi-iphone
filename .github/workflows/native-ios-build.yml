@@ -1,0 +1,24 @@
+name: Native iOS Voice Calculator - Build
+on:
+  push:
+    branches: [ios-native-apple-speech]
+    paths:
+      - 'native-ios/**'
+      - '.github/workflows/native-ios-build.yml'
+  workflow_dispatch:
+jobs:
+  ios-simulator:
+    runs-on: macos-15
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Generate Xcode project
+        run: cd native-ios && xcodegen generate
+      - name: Build app and test target (unsigned simulator)
+        run: |
+          cd native-ios
+          xcodebuild -project VoiceCalculator.xcodeproj -scheme VoiceCalculator \
+            -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO build
