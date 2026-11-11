@@ -236,6 +236,10 @@ function parseTranscript(text) {
     .replace(/\s+/g,' ').trim();
   // Commas separating words are new amounts, but 12,500 is a single value.
   normalized=normalized.replace(/(?<!\d)[,;]+|[,;]+(?!\d)/g,' |+| ');
+  // Speech services may return mathematical symbols instead of Vietnamese words.
+  // Accept 1+2, 1 + 2, 10000-2000, multiplication and division.
+  normalized=normalized.replace(/[＋﹢]/g,'+').replace(/[−–—]/g,'-').replace(/[×✕]/g,'*').replace(/÷/g,'/');
+  normalized=normalized.replace(/([+*/-])/g,' |$1| ');
   normalized=normalized.replace(/(^|\s)(cong|tru|nhan|chia|bot)(?=\s|$)/g,(_,pre,op)=>`${pre}|${op==='bot'?'tru':op}|`);
   const parts=normalized.split('|');
   const out=[];
@@ -293,6 +297,7 @@ const STORAGE_KEY='voice-calculator-v1';
 const icons={edit:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L9 17l-4 1 1-4z"/></svg>'};
 let entries=[],archives=[],sessionStarted=Date.now();
 let recognition=null,wantListening=false,recognitionRunning=false,restartTimer=null,toastTimer=null;
+let consecutiveSilentSessions=0;
 let editIndex=-1;
 const SpeechAPI=window.SpeechRecognition||window.webkitSpeechRecognition;
 
@@ -320,41 +325,87 @@ function addEntries(newEntries,source){if(newEntries?.[0]?.command==='undo'){und
 }
 function parseAndAdd(text,source){try{addEntries(parseTranscript(text),source);$('heardText').textContent=text;$('heardText').classList.remove('live');return true;}catch(e){$('heardText').textContent=`Chưa ghi: ${text}`;$('heardText').classList.remove('live');warning('Không hiểu rõ số: '+e.message+'. Nhập tay để sửa, hoặc đọc lại.');showToast('Chưa cộng số chưa rõ');return false;}}
 function undo(){if(!entries.length)return;entries.pop();save();render();showToast('Đã hoàn tác khoản cuối');}
-function stopSpeech(){wantListening=false;clearTimeout(restartTimer);setStatus('Đã tạm dừng');if(recognition){try{recognition.stop();}catch(e){}}recognitionRunning=false;}
+function stopSpeech(){
+  wantListening=false;clearTimeout(restartTimer);
+  setStatus('Đã tạm dừng');
+  if(recognition){try{recognition.stop();}catch(e){}}
+}
 function startSpeech(){
- if(!SpeechAPI){warning('Trình duyệt này không hỗ trợ nhận giọng nói qua web. Hãy mở bằng Safari hoặc Chrome và thử lại; bạn vẫn có thể nhập số bằng bàn phím.');setStatus('Chưa hỗ trợ micro');return;}
- if(!window.isSecureContext){warning('Micro yêu cầu đường dẫn HTTPS hoặc localhost.');return;}
- warning('');wantListening=true;startRecognition();
+  if(!SpeechAPI){
+    warning('Trình duyệt không hỗ trợ nhận giọng nói trực tiếp. Hãy chạm ô nhập bên dưới và dùng nút micro trên bàn phím iPhone để đọc số.');
+    setStatus('Không có nhận dạng giọng nói');$('manualInput').focus();return;
+  }
+  if(!window.isSecureContext){warning('Micro yêu cầu đường dẫn HTTPS hoặc localhost.');setStatus('Không thể mở micro');return;}
+  warning('');consecutiveSilentSessions=0;wantListening=true;startRecognition();
 }
 function startRecognition(){
- if(!wantListening||recognitionRunning||document.hidden)return;
- const r=new SpeechAPI();recognition=r;r.lang='vi-VN';r.continuous=true;r.interimResults=true;r.maxAlternatives=1;
- const committed=new Set();
- r.onstart=()=>{recognitionRunning=true;setStatus('Đang nghe tiếng Việt',true);};
- r.onresult=event=>{
-   const interim=[];
-   for(let i=event.resultIndex;i<event.results.length;i++){
-     const alt=event.results[i]?.[0];if(!alt)continue;
-     const text=alt.transcript.trim();
-     if(event.results[i].isFinal){if(!committed.has(i)){committed.add(i);if(text)parseAndAdd(text,'voice');}}
-     else if(text) interim.push(text);
-   }
-   if(interim.length){$('heardText').textContent=interim.join(' ');$('heardText').classList.add('live');}
- };
- r.onerror=e=>{
-   const fatal=['not-allowed','service-not-allowed','audio-capture','language-not-supported'];
-   if(fatal.includes(e.error)){
-     wantListening=false;
-     warning(e.error==='not-allowed'?'Bạn chưa cấp quyền micro. Hãy bật quyền micro trong cài đặt Safari/Chrome rồi thử lại.':`Không thể dùng micro: ${e.error}. Bạn có thể nhập tay.`);
-     setStatus('Micro chưa sẵn sàng');
-   }else if(e.error!=='no-speech'&&e.error!=='aborted'){warning('Nhận giọng nói gián đoạn: '+e.error);}
- };
- r.onend=()=>{
-   recognitionRunning=false;recognition=null;
-   if(wantListening&&!document.hidden){setStatus('Đang kết nối lại micro…',true);restartTimer=setTimeout(startRecognition,350);}
-   else setStatus('Đã tạm dừng');
- };
- try{r.start();}catch(e){recognitionRunning=false;wantListening=false;setStatus('Micro chưa sẵn sàng');warning('Trình duyệt không khởi động được micro. Bạn có thể nhập tay.');}
+  if(!wantListening||recognition||document.hidden)return;
+  const r=new SpeechAPI();recognition=r;
+  r.lang='vi-VN';r.continuous=true;r.interimResults=true;r.maxAlternatives=1;
+  const committed=new Set();
+  let lastInterim='',sawAnyResult=false,sawFinal=false,recognitionError='';
+  setStatus('Đang mở micro…',true);
+  r.onstart=()=>{if(recognition!==r)return;recognitionRunning=true;setStatus('Đang nghe tiếng Việt',true);};
+  r.onresult=event=>{
+    if(recognition!==r)return;
+    const interim=[];
+    for(let i=event.resultIndex;i<event.results.length;i++){
+      const alt=event.results[i]?.[0];if(!alt)continue;
+      const text=alt.transcript.trim();if(!text)continue;
+      sawAnyResult=true;
+      if(event.results[i].isFinal){
+        if(!committed.has(i)){
+          committed.add(i);sawFinal=true;lastInterim='';parseAndAdd(text,'voice');
+        }
+      } else interim.push(text);
+    }
+    if(interim.length){
+      lastInterim=interim.join(' ');
+      $('heardText').textContent=lastInterim;
+      $('heardText').classList.add('live');
+      setStatus('Đã nghe tiếng nói – đang xử lý',true);
+    }
+  };
+  r.onerror=e=>{
+    if(recognition!==r)return;
+    recognitionError=e.error||'unknown';
+    const fatal=['not-allowed','service-not-allowed','audio-capture','language-not-supported','network'];
+    if(fatal.includes(recognitionError)){
+      wantListening=false;
+      const detail=recognitionError==='not-allowed'?'Micro chưa được cấp quyền.':
+        recognitionError==='network'?'Dịch vụ nhận dạng giọng nói của trình duyệt không kết nối được.':
+        'Nhận dạng giọng nói không khả dụng ('+recognitionError+').';
+      warning(detail+' Bạn có thể chạm ô nhập bên dưới và dùng micro trên bàn phím iPhone.');
+      setStatus('Không nhận được giọng nói');
+    }else if(recognitionError!=='aborted'&&recognitionError!=='no-speech'){
+      warning('Micro bị gián đoạn: '+recognitionError+'. Hãy chạm micro thử lại.');
+    }
+  };
+  r.onend=()=>{
+    if(recognition!==r)return;
+    recognitionRunning=false;recognition=null;
+    // Some mobile browsers end the session without a final result.
+    if(lastInterim){parseAndAdd(lastInterim,'voice');sawAnyResult=true;}
+    if(!wantListening||document.hidden){
+      if(!recognitionError||recognitionError==='aborted')setStatus('Đã tạm dừng');
+      return;
+    }
+    if(!sawAnyResult){
+      consecutiveSilentSessions++;
+      if(consecutiveSilentSessions>=2){
+        wantListening=false;setStatus('Micro không nhận được lời nói');
+        warning('Trình duyệt đã dừng nhận giọng nói mà không có kết quả. Thử chạm micro một lần nữa, hoặc chạm ô nhập bên dưới và dùng micro trên bàn phím iPhone.');
+        return;
+      }
+    }else consecutiveSilentSessions=0;
+    setStatus('Đang kết nối lại micro…',true);
+    restartTimer=setTimeout(startRecognition,450);
+  };
+  try{r.start();}catch(e){
+    recognitionRunning=false;recognition=null;wantListening=false;
+    setStatus('Không thể khởi động micro');
+    warning('Trình duyệt không cho phép bắt đầu nhận giọng nói. Hãy dùng micro trên bàn phím trong ô nhập bên dưới.');
+  }
 }
 function openEdit(i){editIndex=i;const entry=entries[i];if(!entry)return;$('editOp').value=entry.op;$('editAmount').value=String(entry.amount);$('editPercent').checked=!!entry.percent;$('editDialog').showModal();}
 function onEdit(event){event.preventDefault();if(editIndex<0)return;try{
