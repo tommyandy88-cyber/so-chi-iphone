@@ -42,6 +42,39 @@ def pcm_to_float(chunk: bytes) -> list[float]:
     if sys.byteorder=="big": buf.byteswap()
     return [sample/32768.0 for sample in buf]
 
+# Diagnostic test of the native speech pipeline without storing any audio.
+# Used to distinguish a ready web server from a working transcriber.
+_last_probe=0.0
+@app.get("/health/stream")
+async def stream_probe():
+    global _last_probe
+    now=time.monotonic()
+    if now-_last_probe<30:
+        return {"stream_ok":False,"message":"Diagnostic recently run"}
+    if active_session.locked():
+        return {"stream_ok":False,"message":"Speech server busy"}
+    _last_probe=now
+    def work():
+        t=Transcriber(model_path=str(MODEL_PATH),model_arch=MODEL_ARCH)
+        st=None
+        try:
+            st=t.create_stream(update_interval=.25)
+            st.start()
+            st.add_audio([0.0]*8000,16000)
+            st.stop()
+            return {"stream_ok":True,"engine":"moonshine-tiny-streaming-vi"}
+        finally:
+            if st:
+                try:st.close()
+                except Exception:pass
+            try:t.close()
+            except Exception:pass
+    try:
+        async with active_session:
+            return await asyncio.wait_for(asyncio.to_thread(work),timeout=25)
+    except Exception as exc:
+        return {"stream_ok":False,"error_type":type(exc).__name__}
+
 @app.websocket("/ws")
 async def receive_audio(ws: WebSocket):
     origin=(ws.headers.get("origin") or "").rstrip("/")
