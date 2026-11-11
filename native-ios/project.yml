@@ -1,0 +1,43 @@
+name: VoiceCalculator
+options:
+  bundleIdPrefix: com.kanaan
+  deploymentTarget:
+    iOS: '17.0'
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: '5.0'
+    TARGETED_DEVICE_FAMILY: '1'
+    IPHONEOS_DEPLOYMENT_TARGET: '17.0'
+    DEVELOPMENT_TEAM: ''
+targets:
+  VoiceCalculator:
+    type: application
+    platform: iOS
+    sources:
+      - path: VoiceCalculator
+    info:
+      path: VoiceCalculator/Info.plist
+      properties:
+        CFBundleDisplayName: Máy tính giọng nói
+        CFBundleShortVersionString: '2.0'
+        CFBundleVersion: '1'
+        NSMicrophoneUsageDescription: Cần micro để đọc số và tính toán bằng giọng nói.
+        NSSpeechRecognitionUsageDescription: Cần nhận dạng giọng nói tiếng Việt để chuyển số đọc thành phép tính.
+        UIRequiresFullScreen: false
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.kanaan.voicecalculator
+        SWIFT_EMIT_LOC_STRINGS: 'YES'
+  VoiceCalculatorTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: VoiceCalculatorTests
+    dependencies:
+      - target: VoiceCalculator
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.kanaan.voicecalculator.tests
