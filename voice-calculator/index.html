@@ -195,6 +195,31 @@ function parseAmount(value) {
   return total;
 }
 
+// Separate complete consecutive money amounts even when speech recognition
+// removes commas and pauses: "ba muoi ngan bon muoi ngan" => 2 amounts.
+// A descending scale stays within one amount: "mot trieu hai tram ngan".
+function splitSpokenAmounts(phrase) {
+  const tokens=phrase.trim().split(/\s+/).filter(Boolean);
+  const groups=[];
+  let current=[],lastScale=null,lastScalePos=-1;
+  for(const tok of tokens){
+    const value=scale[tok];
+    if(value!==undefined && lastScale!==null && value>=lastScale && lastScalePos>=0 && lastScalePos<current.length-1){
+      const head=current.slice(0,lastScalePos+1);
+      const tail=current.slice(lastScalePos+1);
+      // Only split at a completed money scale. Never throw away tokens.
+      groups.push(head.join(' '));
+      current=[...tail,tok];
+      lastScale=value;lastScalePos=current.length-1;
+    } else {
+      current.push(tok);
+      if(value!==undefined){lastScale=value;lastScalePos=current.length-1;}
+    }
+  }
+  if(current.length)groups.push(current.join(' '));
+  return groups;
+}
+
 function parseTranscript(text) {
   let normalized=fold(text).replace(/\b(oi|nhe|nha|di|giup|toi|cho|voi|nao)\b/g,' ')
     .replace(/\b(ngan|nghin|ngan dong|nghin dong)\b/g, x=>x)
@@ -223,14 +248,17 @@ function parseTranscript(text) {
     // A comma may be the number separator in a voice transcript.
     const sub=p.split(/(?<=\d)\s+(?=\d+(?:[.,]\d+)*)/).filter(Boolean);
     for(const one of sub) {
-      let v=one.trim();
-      const percent=/(\bphan tram\b|%)$/.test(v);
-      if(percent) v=v.replace(/(\bphan tram\b|%)$/,'').trim();
-      let amount=parseAmount(v);
-      if(!Number.isFinite(amount)||amount<0) throw new Error('Giá trị không hợp lệ');
-      if(percent&&!['+','-'].includes(operation)) throw new Error('Phần trăm chỉ hỗ trợ cộng hoặc trừ');
-      out.push({op:operation,amount,percent,spoken:one.trim()});
-      operation='+';
+      const split=splitSpokenAmounts(one);
+      for(const expression of split){
+        let v=expression.trim();
+        const percent=/(\bphan tram\b|%)$/.test(v);
+        if(percent) v=v.replace(/(\bphan tram\b|%)$/,'').trim();
+        const amount=parseAmount(v);
+        if(!Number.isFinite(amount)||amount<0) throw new Error('Giá trị không hợp lệ');
+        if(percent&&!['+','-'].includes(operation)) throw new Error('Phần trăm chỉ hỗ trợ cộng hoặc trừ');
+        out.push({op:operation,amount,percent,spoken:expression.trim()});
+        operation='+';
+      }
     }
   }
   if(!out.length) throw new Error('Không tìm thấy số tiền');
