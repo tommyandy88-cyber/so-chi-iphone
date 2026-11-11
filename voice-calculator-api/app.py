@@ -1,271 +1,156 @@
-"""Vietnamese voice recognition backend (Moonshine Vietnamese Streaming).
+"""Streamed Vietnamese speech calculation backend using MIT faster-whisper.
 
-Protocol stays unchanged for the existing iPhone large-microphone frontend:
-  WebSocket /ws, binary signed 16-bit mono PCM 16 kHz.
-  {"type":"ready"}, {"type":"partial","text":...}, {"type":"final","text":...}
-  Client sends {"type":"stop"} to flush the final utterance.
-No OpenAI API, cloud transcription provider, recording persistence or key.
+Receives 16kHz mono PCM over the app's existing WebSocket. Detects end-of-
+utterance by measured silence, transcribes on CPU, returns only finalized text.
+No spoken audio is persisted, and no paid recognition API is used.
 """
-import asyncio
+import asyncio,base64,json,time,zlib
 from array import array
-import json
-import os
 from pathlib import Path
-import time
-
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+import numpy as np
+from fastapi import FastAPI,WebSocket,WebSocketDisconnect
+from faster_whisper import WhisperModel
 
 BASE=Path(__file__).resolve().parent
-os.environ.setdefault("MOONSHINE_VOICE_CACHE",str(BASE/"models"))
-from moonshine_voice import Transcriber, TranscriptEventListener, get_model_for_language
-
-MODEL_PATH, MODEL_ARCH = get_model_for_language("vi")
-app=FastAPI(title="Vietnamese Calculator Voice Backend",docs_url=None,redoc_url=None)
-
+MODEL=WhisperModel(str(BASE/"models"/"whisper-base"),device="cpu",compute_type="int8",cpu_threads=2,num_workers=1)
+app=FastAPI(title="Vietnamese Voice Calculator Whisper STT",docs_url=None,redoc_url=None)
 APP_ORIGIN="https://may-tinh-giong-noi-vi.onrender.com"
-LIMIT_SECONDS=10*60
-MAX_TOTAL_AUDIO=16000*2*LIMIT_SECONDS
-active_session=asyncio.Lock()
+MAX_SESSION=600
+LOCK=asyncio.Lock()
+HINT="Số tiền Việt Nam. Mười lăm cộng mười chín cộng mười bảy. Một ngàn, hai ngàn rưỡi, mười hai ngàn, trừ, nhân, chia, phần trăm."
+
+def transcribe(samples):
+    if len(samples)<4800:return ""
+    segments,info=MODEL.transcribe(samples.astype(np.float32),language="vi",task="transcribe",
+        beam_size=3,best_of=2,temperature=0,
+        initial_prompt=HINT,condition_on_previous_text=False,
+        vad_filter=False,no_speech_threshold=.65,
+        repetition_penalty=1.1)
+    return " ".join((segment.text or "").strip() for segment in segments).strip()
+
+def decode_pcm(data):
+    if len(data)%2: raise ValueError("Invalid PCM length")
+    return np.frombuffer(data,dtype="<i2").astype(np.float32)/32768.0
 
 @app.get("/health")
 async def health():
-    return {"ready": True, "engine": "moonshine-tiny-streaming-vi",
-            "model_loaded":Path(MODEL_PATH).exists(),
-            "paid_api":False}
+    return {"ready":True,"engine":"whisper-base-int8-vi","paid_api":False}
 
-def pcm_to_float(chunk: bytes) -> list[float]:
-    # Audio is mono 16 kHz little-endian signed 16-bit PCM.
-    if len(chunk)%2: raise ValueError("Odd PCM byte count")
-    buf=array("h")
-    buf.frombytes(chunk)
-    import sys
-    if sys.byteorder=="big": buf.byteswap()
-    return [sample/32768.0 for sample in buf]
-
-# Diagnostic test of the native speech pipeline without storing any audio.
-# Used to distinguish a ready web server from a working transcriber.
-_last_probe=0.0
-@app.get("/health/stream")
-async def stream_probe():
-    global _last_probe
-    now=time.monotonic()
-    if now-_last_probe<30:
-        return {"stream_ok":False,"message":"Diagnostic recently run"}
-    if active_session.locked():
-        return {"stream_ok":False,"message":"Speech server busy"}
-    _last_probe=now
-    def work():
-        t=Transcriber(model_path=str(MODEL_PATH),model_arch=MODEL_ARCH)
-        st=None
-        try:
-            st=t
-            st.start()
-            st.add_audio([0.0]*8000,16000)
-            st.stop()
-            return {"stream_ok":True,"engine":"moonshine-tiny-streaming-vi"}
-        finally:
-            if st:
-                try:st.close()
-                except Exception:pass
-            try:t.close()
-            except Exception:pass
-    try:
-        async with active_session:
-            return await asyncio.wait_for(asyncio.to_thread(work),timeout=25)
-    except Exception as exc:
-        return {"stream_ok":False,"error_type":type(exc).__name__}
-
-# Synthetic spoken-word test; never uses user audio or saves recordings.
-_test_last_time=0
+_test_last=0
 @app.get("/health/voice")
-async def test_vietnamese_speech():
-    global _test_last_time
-    now=time.monotonic()
-    if now-_test_last_time<20:
-        return {"test_ready":False,"reason":"throttled"}
-    if active_session.locked():
-        return {"test_ready":False,"reason":"busy"}
-    _test_last_time=now
-    def run():
-        import base64,zlib
-        encoded=(BASE/"test_vietnamese_audio.txt").read_text().strip()
-        raw=zlib.decompress(base64.urlsafe_b64decode(encoded))
-        # The test audio was synthesized using the Vietnamese espeak voice,
-        # then quantized to 8-bit PCM for a tiny non-sensitive test artifact.
-        import numpy as np
-        samples=np.frombuffer(raw,dtype=np.int8).astype(np.float32)/127.0
-        # Include silence before/after so voice activity boundaries can resolve.
-        word=samples.copy()
-        # A single synthetic 0.75s word can be rejected by VAD; try a
-        # 3-word utterance with natural pauses, retaining the original sample.
-        samples=np.concatenate((np.zeros(8000,dtype=np.float32),
-            word,np.zeros(6000,dtype=np.float32),
-            word,np.zeros(6000,dtype=np.float32),
-            word,np.zeros(18000,dtype=np.float32)))
-        observed=[]
-        class ProbeListener(TranscriptEventListener):
-            def on_line_text_changed(self,event):
-                value=str(event.line.text or "").strip()
-                if value:observed.append({"kind":"partial","text":value})
-            def on_line_completed(self,event):
-                value=str(event.line.text or "").strip()
-                if value:observed.append({"kind":"final","text":value})
-        t=Transcriber(model_path=str(MODEL_PATH),model_arch=MODEL_ARCH)
-        try:
-            listener=ProbeListener();t.add_listener(listener)
-            t.start()
-            for i in range(0,len(samples),1600):
-                t.add_audio(samples[i:i+1600].tolist(),16000)
-            transcript=t.update_transcription()
-            inspect={"type":type(transcript).__name__,
-                     "repr":repr(transcript)[:450]}
-            if hasattr(transcript,"lines"):
-                inspect["lines"]=[str(getattr(x,"text",""))[:120] for x in transcript.lines][:10]
-            final=t.stop()
-            inspect["after_stop"]=[str(getattr(x,"text",""))[:120] for x in getattr(final,"lines",[])][:10]
-            return {"test_ready":True,"audio_seconds":round(len(samples)/16000,2),
-                    "events":observed[-10:],
-                    "event_count":len(observed),"transcript":inspect}
-        finally:t.close()
+async def voice_test():
+    global _test_last
+    if time.monotonic()-_test_last<30:return {"test_ready":False,"reason":"recently tested"}
+    if LOCK.locked():return {"test_ready":False,"reason":"busy"}
+    _test_last=time.monotonic()
+    def work():
+        b=zlib.decompress(base64.urlsafe_b64decode((BASE/"test_vietnamese_audio.txt").read_text().strip()))
+        sample=np.frombuffer(b,dtype=np.int8).astype(np.float32)/127.0
+        audio=np.concatenate((np.zeros(4000,np.float32),sample,np.zeros(6500,np.float32),
+          sample,np.zeros(6500,np.float32),sample,np.zeros(10000,np.float32)))
+        return {"test_ready":True,"audio_seconds":round(len(audio)/16000,2),
+                "transcript":transcribe(audio)}
     try:
-        async with active_session:
-            return await asyncio.wait_for(asyncio.to_thread(run),timeout=45)
-    except Exception as exc:
-        return {"test_ready":False,"error_type":type(exc).__name__,"error":str(exc)[:180]}
+        async with LOCK:return await asyncio.wait_for(asyncio.to_thread(work),timeout=50)
+    except Exception as exc:return {"test_ready":False,"error_type":type(exc).__name__,"detail":str(exc)[:160]}
 
 @app.websocket("/ws")
-async def receive_audio(ws: WebSocket):
-    origin=(ws.headers.get("origin") or "").rstrip("/")
-    if origin!=APP_ORIGIN:
-        await ws.close(code=1008,reason="Origin not allowed")
-        return
+async def speech(ws:WebSocket):
+    if (ws.headers.get("origin") or "").rstrip("/")!=APP_ORIGIN:
+        await ws.close(code=1008);return
     await ws.accept()
-    if active_session.locked():
-        await ws.send_json({"type":"error","message":"Bộ nhận giọng nói đang được sử dụng. Hãy thử lại sau."})
-        await ws.close(code=1013)
-        return
-
-    async with active_session:
-        # Sending model ready only after all model weights and stream are open
-        # prevents the browser from sending audio before it can be processed.
-        loop=asyncio.get_running_loop()
-        queue=asyncio.Queue(maxsize=160)
-        transcriber=None
-        stream=None
-        send_task=None
+    if LOCK.locked():
+        await ws.send_json({"type":"error","message":"Bộ nhận giọng nói đang bận. Thử lại sau."})
+        await ws.close(code=1013);return
+    async with LOCK:
         started=time.monotonic()
-        total_bytes=0
-        audio_packets=0
-        audio_peak=0.0
-        last_audio_status=0.0
-        last_partial=0.0
-
-        def enqueue(message):
-            def push():
-                if queue.full() and message.get("type")=="partial": return
-                try: queue.put_nowait(message)
-                except asyncio.QueueFull: pass
-            try:loop.call_soon_threadsafe(push)
-            except RuntimeError:pass
-
-        class Listener(TranscriptEventListener):
-            def on_line_text_changed(self,event):
-                nonlocal last_partial
-                value=str(event.line.text or "").strip()
-                now=time.monotonic()
-                if value and now-last_partial>=.20:
-                    last_partial=now
-                    enqueue({"type":"partial","text":value})
-            def on_line_completed(self,event):
-                value=str(event.line.text or "").strip()
-                if value:enqueue({"type":"final","text":value})
-            def on_error(self,event):
-                enqueue({"type":"error","message":"Bộ nhận dạng gặp lỗi trong phiên nghe."})
-
-        async def send_results():
-            while True:
-                item=await queue.get()
-                try:
-                    if item is None: break
-                    await ws.send_json(item)
-                except Exception:
-                    break
-                finally:
-                    queue.task_done()
-
+        packets=0;received=0;peak=0;last_status=0
+        in_speech=False;voice_frames=0
+        preroll=[]; utterance=[]
+        silence_sec=0; utterance_sec=0
+        preceding=None; send_lock=asyncio.Lock()
+        alive=True
+        async def send(data):
+            async with send_lock:await ws.send_json(data)
+        async def run_transcription(samples,preceding):
+            if preceding:
+                try:await preceding
+                except Exception:pass
+            try:
+                result=await asyncio.to_thread(transcribe,samples)
+                if result and alive:await send({"type":"final","text":result})
+                elif alive:await send({"type":"no-match","message":"Đã nghe âm thanh nhưng không nhận diện được lời nói rõ ràng."})
+            except Exception as exc:
+                print("WHISPER_DECODE_ERROR",type(exc).__name__,str(exc)[:180],flush=True)
+                if alive:await send({"type":"error","message":"Lỗi xử lý giọng nói: "+type(exc).__name__})
+        def make_segment():
+            nonlocal in_speech,silence_sec,utterance_sec,voice_frames,utterance
+            output=np.concatenate(utterance) if utterance else np.array([],dtype=np.float32)
+            utterance=[];in_speech=False;silence_sec=0;utterance_sec=0;voice_frames=0
+            return output
+        def enough_voice():return voice_frames>=4 and utterance_sec>=.45
         try:
-            transcriber=await asyncio.to_thread(
-                Transcriber,model_path=str(MODEL_PATH),model_arch=MODEL_ARCH)
-            # Use the documented one-input Transcriber API, rather than the
-            # multi-stream API; callbacks belong to the transcriber itself.
-            listener=Listener()
-            transcriber.add_listener(listener)
-            await asyncio.to_thread(transcriber.start)
-            send_task=asyncio.create_task(send_results())
-            print("VOICE_SESSION_READY",flush=True)
-            await ws.send_json({"type":"ready","engine":"moonshine-tiny-streaming-vi"})
+            await send({"type":"ready","engine":"whisper-base-int8-vi"})
+            print("WHISPER_SESSION_READY",flush=True)
             while True:
                 packet=await ws.receive()
                 if packet.get("type")=="websocket.disconnect":break
-                if time.monotonic()-started>LIMIT_SECONDS:
-                    enqueue({"type":"error","message":"Phiên nghe đã đạt giới hạn thời gian. Hãy chạm lại nút micro."})
+                if time.monotonic()-started>MAX_SESSION:
+                    await send({"type":"error","message":"Phiên nghe đã vượt giới hạn thời gian, hãy bấm lại nút micro."})
                     break
-                data=packet.get("bytes")
-                if data is not None:
-                    if not data: continue
-                    total_bytes+=len(data)
-                    if len(data)>64000 or total_bytes>MAX_TOTAL_AUDIO or len(data)%2:
-                        enqueue({"type":"error","message":"Luồng âm thanh không hợp lệ hoặc vượt giới hạn."})
-                        break
-                    # moonshine_voice processes incremental 32-bit floating point PCM.
-                    samples=pcm_to_float(data)
-                    audio_packets+=1
-                    audio_peak=max(audio_peak,max((abs(sample) for sample in samples),default=0.0))
+                binary=packet.get("bytes")
+                if binary is not None:
+                    if not binary:continue
+                    received+=len(binary);packets+=1
+                    if len(binary)>64000 or received>MAX_SESSION*32000 or len(binary)%2:break
+                    chunk=decode_pcm(binary)
+                    dur=len(chunk)/16000
+                    amplitude=float(np.sqrt(np.mean(chunk**2))) if chunk.size else 0
+                    peak=max(peak,float(np.max(np.abs(chunk))) if chunk.size else 0)
+                    voiced=amplitude>=.008
+                    if not in_speech:
+                        preroll.append(chunk)
+                        # Keep at most about 0.5 seconds preceding first voice.
+                        if len(preroll)>6:preroll=preroll[-6:]
+                        if voiced:
+                            in_speech=True;utterance=preroll.copy();preroll=[]
+                            utterance_sec=sum(len(x) for x in utterance)/16000
+                            voice_frames=1
+                    else:
+                        utterance.append(chunk);utterance_sec+=dur
+                        if voiced:voice_frames+=1;silence_sec=0
+                        else:silence_sec+=dur
+                        if silence_sec>=.75 or utterance_sec>=14:
+                            valid=enough_voice()
+                            segment=make_segment()
+                            if valid:
+                                preceding=asyncio.create_task(run_transcription(segment,preceding))
                     now=time.monotonic()
-                    if now-last_audio_status>=1.5:
-                        print("VOICE_PCM",audio_packets,"packets",total_bytes,"bytes",flush=True)
-                        enqueue({"type":"audio-status",
-                                 "seconds":round(total_bytes/32000,1),
-                                 "packets":audio_packets,
-                                 "level":round(audio_peak*100)})
-                        last_audio_status=now
-                        audio_peak=0.0
-                    await asyncio.to_thread(transcriber.add_audio,samples,16000)
+                    if now-last_status>=1.5:
+                        print("WHISPER_PCM",packets,"packets",received,"bytes",flush=True)
+                        await send({"type":"audio-status","seconds":round(received/32000,1),
+                            "packets":packets,"level":round(peak*100)})
+                        last_status=now;peak=0
                 else:
-                    try: kind=json.loads(packet.get("text") or "{}").get("type")
-                    except (TypeError,ValueError):kind=None
+                    try:kind=json.loads(packet.get("text") or "{}").get("type")
+                    except Exception:kind=None
                     if kind=="stop":
-                        await asyncio.to_thread(transcriber.stop)
-                        # Native event callbacks can arrive on a worker thread.
-                        await asyncio.sleep(.12)
-                        enqueue({"type":"stopped"})
-                        await asyncio.wait_for(queue.join(),timeout=4)
+                        if in_speech:
+                            valid=enough_voice();segment=make_segment()
+                            if valid:preceding=asyncio.create_task(run_transcription(segment,preceding))
+                        if preceding:await preceding
+                        await send({"type":"stopped"})
                         break
-        except WebSocketDisconnect:
-            pass
+        except WebSocketDisconnect:pass
         except Exception as exc:
-            print("VOICE_SESSION_ERROR",type(exc).__name__,str(exc)[:200],flush=True)
-            message={"type":"error","message":"Nhận dạng giọng nói bị gián đoạn: "+type(exc).__name__}
-            if send_task:
-                enqueue(message)
-            else:
-                try: await ws.send_json(message)
-                except Exception: pass
+            print("WHISPER_SESSION_ERROR",type(exc).__name__,str(exc)[:200],flush=True)
+            try:await send({"type":"error","message":"Lỗi đường truyền: "+type(exc).__name__})
+            except Exception:pass
         finally:
-            if transcriber:
-                print("VOICE_SESSION_CLOSED",total_bytes,"audio-bytes",audio_packets,"packets",flush=True)
-                try:await asyncio.to_thread(transcriber.stop)
-                except Exception:pass
-            if transcriber:
-                try:await asyncio.to_thread(transcriber.close)
-                except Exception:pass
-            if send_task:
-                try:
-                    await asyncio.wait_for(queue.join(),timeout=2)
-                except Exception:pass
-                try:queue.put_nowait(None)
-                except asyncio.QueueFull:pass
-                try:await asyncio.wait_for(send_task,timeout=2)
-                except Exception:send_task.cancel()
+            print("WHISPER_SESSION_CLOSED",received,"bytes",packets,"packets",flush=True)
+            if preceding and not preceding.done():
+                try:await asyncio.wait_for(preceding,timeout=10)
+                except Exception:preceding.cancel()
+            alive=False
             try:await ws.close()
             except Exception:pass
