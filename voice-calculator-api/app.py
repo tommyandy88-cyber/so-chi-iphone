@@ -75,6 +75,52 @@ async def stream_probe():
     except Exception as exc:
         return {"stream_ok":False,"error_type":type(exc).__name__}
 
+# Synthetic spoken-word test; never uses user audio or saves recordings.
+_test_last_time=0
+@app.get("/health/voice")
+async def test_vietnamese_speech():
+    global _test_last_time
+    now=time.monotonic()
+    if now-_test_last_time<20:
+        return {"test_ready":False,"reason":"throttled"}
+    if active_session.locked():
+        return {"test_ready":False,"reason":"busy"}
+    _test_last_time=now
+    def run():
+        import base64,zlib
+        encoded=(BASE/"test_vietnamese_audio.txt").read_text().strip()
+        raw=zlib.decompress(base64.urlsafe_b64decode(encoded))
+        # The test audio was synthesized using the Vietnamese espeak voice,
+        # then quantized to 8-bit PCM for a tiny non-sensitive test artifact.
+        import numpy as np
+        samples=np.frombuffer(raw,dtype=np.int8).astype(np.float32)/127.0
+        # Include silence before/after so voice activity boundaries can resolve.
+        samples=np.concatenate((np.zeros(4800,dtype=np.float32),samples,np.zeros(16000,dtype=np.float32)))
+        observed=[]
+        class ProbeListener(TranscriptEventListener):
+            def on_line_text_changed(self,event):
+                value=str(event.line.text or "").strip()
+                if value:observed.append({"kind":"partial","text":value})
+            def on_line_completed(self,event):
+                value=str(event.line.text or "").strip()
+                if value:observed.append({"kind":"final","text":value})
+        t=Transcriber(model_path=str(MODEL_PATH),model_arch=MODEL_ARCH)
+        try:
+            listener=ProbeListener();t.add_listener(listener)
+            t.start()
+            for i in range(0,len(samples),1600):
+                t.add_audio(samples[i:i+1600].tolist(),16000)
+            t.stop()
+            return {"test_ready":True,"audio_seconds":round(len(samples)/16000,2),
+                    "events":observed[-10:],
+                    "event_count":len(observed)}
+        finally:t.close()
+    try:
+        async with active_session:
+            return await asyncio.wait_for(asyncio.to_thread(run),timeout=45)
+    except Exception as exc:
+        return {"test_ready":False,"error_type":type(exc).__name__,"error":str(exc)[:180]}
+
 @app.websocket("/ws")
 async def receive_audio(ws: WebSocket):
     origin=(ws.headers.get("origin") or "").rstrip("/")
@@ -144,6 +190,7 @@ async def receive_audio(ws: WebSocket):
             transcriber.add_listener(listener)
             await asyncio.to_thread(transcriber.start)
             send_task=asyncio.create_task(send_results())
+            print("VOICE_SESSION_READY",flush=True)
             await ws.send_json({"type":"ready","engine":"moonshine-tiny-streaming-vi"})
             while True:
                 packet=await ws.receive()
@@ -164,6 +211,7 @@ async def receive_audio(ws: WebSocket):
                     audio_peak=max(audio_peak,max((abs(sample) for sample in samples),default=0.0))
                     now=time.monotonic()
                     if now-last_audio_status>=1.5:
+                        print("VOICE_PCM",audio_packets,"packets",total_bytes,"bytes",flush=True)
                         enqueue({"type":"audio-status",
                                  "seconds":round(total_bytes/32000,1),
                                  "packets":audio_packets,
@@ -184,6 +232,7 @@ async def receive_audio(ws: WebSocket):
         except WebSocketDisconnect:
             pass
         except Exception as exc:
+            print("VOICE_SESSION_ERROR",type(exc).__name__,str(exc)[:200],flush=True)
             message={"type":"error","message":"Nhận dạng giọng nói bị gián đoạn: "+type(exc).__name__}
             if send_task:
                 enqueue(message)
@@ -192,6 +241,7 @@ async def receive_audio(ws: WebSocket):
                 except Exception: pass
         finally:
             if transcriber:
+                print("VOICE_SESSION_CLOSED",total_bytes,"audio-bytes",audio_packets,"packets",flush=True)
                 try:await asyncio.to_thread(transcriber.stop)
                 except Exception:pass
             if transcriber:
