@@ -1,0 +1,42 @@
+name: Sign Free Native Voice Shortcut
+on:
+  push:
+    branches:
+      - free-permanent-apple-shortcuts
+    paths:
+      - 'voice-calculator-shortcuts/**'
+      - '.github/workflows/sign-free-shortcut.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-shortcut:
+    runs-on: macos-15
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Generate shortcut with validated Apple actions
+        run: python3 voice-calculator-shortcuts/build_shortcut.py
+      - name: Verify unsigned plist
+        run: |
+          plutil -lint voice-calculator-shortcuts/out/Kanaan-Voice-Calc.unsigned.shortcut
+      - name: Sign using Apple's official Shortcuts CLI
+        run: |
+          shortcuts sign --mode anyone \
+            --input voice-calculator-shortcuts/out/Kanaan-Voice-Calc.unsigned.shortcut \
+            --output voice-calculator-shortcuts/out/Kanaan-Voice-Calc.shortcut
+          test -s voice-calculator-shortcuts/out/Kanaan-Voice-Calc.shortcut
+          file voice-calculator-shortcuts/out/Kanaan-Voice-Calc.shortcut
+      - name: Create base64 variant for permanent static hosting
+        run: |
+          base64 -i voice-calculator-shortcuts/out/Kanaan-Voice-Calc.shortcut \
+            -o voice-calculator-shortcuts/out/Kanaan-Voice-Calc.shortcut.b64
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kanaan-voice-shortcut-signed
+          path: |
+            voice-calculator-shortcuts/out/Kanaan-Voice-Calc.shortcut
+            voice-calculator-shortcuts/out/Kanaan-Voice-Calc.shortcut.b64
+          retention-days: 30
