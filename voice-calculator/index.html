@@ -16,6 +16,26 @@
 *{box-sizing:border-box}html{min-height:100%;background:var(--background)}body{margin:0;min-height:100vh;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;color:var(--text);background:radial-gradient(ellipse 100% 380px at 45% -100px,#1b3f3b 0%,transparent 80%),var(--background);-webkit-font-smoothing:antialiased}button,input,select{font:inherit}button{cursor:pointer;-webkit-tap-highlight-color:transparent}button:disabled{opacity:.35;cursor:not-allowed}.app-shell{max-width:650px;margin:auto;padding:calc(16px + env(safe-area-inset-top)) 18px calc(26px + env(safe-area-inset-bottom))}.topbar{display:flex;align-items:center;justify-content:space-between;margin:0 0 22px}.brand{display:flex;align-items:center;gap:10px}.brand-mark{width:40px;height:40px;background:#1d4942;border-radius:13px;color:var(--accent);display:grid;place-items:center}.brand-mark svg{width:23px}.brand-title{font-size:12px;letter-spacing:1.55px;font-weight:850}.brand-caption{font-size:11px;color:var(--muted);margin-top:3px}.icon-button{border:1px solid var(--border);border-radius:12px;background:#15252a;color:var(--text);height:42px;width:42px;display:grid;place-items:center}.icon-button svg{width:22px;height:22px}.total-card{background:linear-gradient(135deg,#1b5148 0%,#173d38 44%,#15302f 100%);border:1px solid #2f7260;border-radius:23px;padding:23px 22px 17px;box-shadow:var(--shadow)}.total-top{display:flex;align-items:center;justify-content:space-between;color:#b9e4d6;font-size:11px;letter-spacing:1.35px;font-weight:750}.currency{font-size:10px;letter-spacing:.5px;background:#265b4e;border:1px solid #38705f;padding:5px 9px;border-radius:99px}.total-number-line{min-height:94px;display:flex;align-items:center;gap:9px;overflow:hidden}.total-number{font-size:clamp(42px,10vw,67px);font-weight:770;letter-spacing:-2px;font-variant-numeric:tabular-nums;line-height:1.15;overflow-wrap:anywhere;min-width:0}.total-number.long{font-size:clamp(31px,7vw,47px)}.total-unit{font-size:16px;font-weight:600;color:#a7d1c4;align-self:center}.total-bottom{display:flex;justify-content:space-between;align-items:center;border-top:1px solid #3a645b;padding-top:13px;font-size:13px;color:#b1d2c5}.text-action{background:none;border:0;color:#c2f4df;display:flex;gap:7px;align-items:center;padding:1px;font-size:12px;font-weight:600}.text-action svg{width:17px;height:17px}.voice-card{background:#102025;border:1px solid #223a3c;border-radius:22px;margin-top:15px;padding:20px 17px 19px;text-align:center;min-height:266px}.voice-status{display:flex;align-items:center;justify-content:center;gap:8px;color:var(--muted);font-size:12px;min-height:21px}.status-dot{width:7px;height:7px;border-radius:50%;background:#748b87}.status-dot.active{background:var(--accent);box-shadow:0 0 0 5px rgba(73,223,173,.1)}.mic-button{display:grid;place-items:center;position:relative;height:90px;width:90px;margin:18px auto 16px;border:0;border-radius:50%;background:linear-gradient(140deg,#44dfab,#2bb98d);color:#062e26;box-shadow:0 10px 35px #0f5c4e77;transition:transform .15s,background .15s}.mic-button:active{transform:scale(.94)}.mic-button>svg{height:42px;width:42px;position:relative;z-index:1}.mic-button.listening{background:linear-gradient(130deg,#ff8780,#f45760);color:#4b1419;box-shadow:0 10px 40px #ff737744}.mic-button.listening .mic-halo{position:absolute;inset:-13px;border:2px solid #ed7d77;border-radius:50%;animation:pulse 1.4s ease-in-out infinite}@keyframes pulse{0%{opacity:.7;transform:scale(.88)}75%{opacity:0;transform:scale(1.2)}100%{opacity:0}}.voice-instruction{color:#e8f5f0;font-size:12px;letter-spacing:1.1px;font-weight:850}.heard{color:var(--muted);font-size:12px;line-height:1.55;min-height:40px;margin:10px auto 0;max-width:380px}.heard.live{color:#bff5e1}.voice-warning{background:#39282a;border:1px solid #80555a;padding:10px;border-radius:10px;font-size:12px;line-height:1.4;margin-top:10px}.action-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin-top:15px}.action-button{background:#192d32;border:1px solid #2b4749;border-radius:13px;min-height:52px;color:#d9eeea;font-size:12px;font-weight:650;display:flex;gap:7px;align-items:center;justify-content:center}.action-button svg{width:18px;height:18px;flex-shrink:0}.action-button:active{background:#26413f}.manual-section{margin-top:24px}.manual-section>label{display:block;font-size:13px;font-weight:750;margin-bottom:10px}.manual-form{display:flex;gap:8px}.manual-form input,.sheet input:not([type=checkbox]),.sheet select{min-width:0;flex:1;border:1px solid #315053;border-radius:13px;background:#112228;color:#f2f8f5;padding:13px 14px;outline:none;font-size:16px}.manual-form input:focus,.sheet input:focus,.sheet select:focus{border-color:var(--accent);box-shadow:0 0 0 2px #3ed7a43b}.manual-form input::placeholder{color:#708f8c;font-size:12px}.manual-form button,.sheet-actions button:not(.secondary){background:var(--accent);border:0;color:#06382b;font-weight:800;border-radius:13px;padding:0 16px;min-height:49px}.history-section{margin-top:26px}.section-heading{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}.section-heading h2{font-size:16px;margin:0}.section-heading span{font-size:12px;color:var(--muted)}.history-list{display:flex;flex-direction:column;gap:8px}.history-item{display:flex;align-items:center;gap:13px;background:#12252a;border:1px solid #223c3e;border-radius:14px;padding:12px 13px;min-height:63px}.history-index{height:30px;width:30px;flex-shrink:0;border-radius:9px;background:#24413e;color:#b7dbc9;display:grid;place-items:center;font-size:12px}.history-amount{flex:1;min-width:0}.history-main{font-size:16px;font-weight:750;font-variant-numeric:tabular-nums}.history-source{font-size:11px;color:var(--muted);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.history-right{display:flex;align-items:center;gap:9px}.history-result{font-size:12px;color:#76dcb7;font-variant-numeric:tabular-nums;white-space:nowrap}.edit-btn{border:0;background:#23403d;color:#d2e7dd;border-radius:9px;width:35px;height:35px;display:grid;place-items:center}.edit-btn svg{width:16px;height:16px}.empty-state{border:1px dashed #31504d;border-radius:14px;padding:25px;color:#829f9a;font-size:13px;text-align:center;line-height:1.6}footer{text-align:center;color:#567871;font-size:10px;margin-top:35px;line-height:1.6}.toast{position:fixed;bottom:calc(25px + env(safe-area-inset-bottom));left:50%;transform:translate(-50%,20px);opacity:0;pointer-events:none;padding:12px 17px;background:#e9f9ed;color:#10352b;border-radius:12px;max-width:calc(100% - 40px);min-width:200px;text-align:center;box-shadow:0 8px 40px #0007;font-size:13px;font-weight:680;transition:.2s;z-index:99}.toast.visible{opacity:1;transform:translate(-50%,0)}.sheet{border:1px solid #44615e;border-radius:19px 19px 0 0;background:#11262a;color:var(--text);padding:0;max-width:650px;width:100%;max-height:86dvh;overflow-y:auto;margin:auto auto 0;box-shadow:0 0 30px #0005}.sheet::backdrop{background:rgba(0,0,0,.66)}.sheet-content{padding:24px 19px calc(25px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:10px}.sheet-handle{width:44px;height:4px;background:#4f7570;border-radius:20px;align-self:center;margin:-9px 0 8px}.sheet h2{font-size:19px;margin:3px 0 12px}.sheet label{font-size:12px;color:#b9d1ca}.sheet input:not([type=checkbox]),.sheet select{flex:none;width:100%}.check-row{display:flex;align-items:center;gap:9px;margin:6px 0}.check-row input{accent-color:var(--accent);height:18px;width:18px}.sheet-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:15px}.sheet-actions button{padding:12px 20px;min-height:44px;border-radius:12px;border:0}.sheet-actions .secondary{background:#2a4444;color:#d0e9e1}.muted{font-size:12px;color:var(--muted);line-height:1.5;margin:0 0 14px}.session-list{display:flex;flex-direction:column;gap:9px}.session-row{display:flex;gap:12px;align-items:center;padding:13px 12px;background:#193339;border-radius:12px;border:1px solid #345454}.session-info{flex:1;min-width:0}.session-name{font-weight:700;font-size:13px}.session-detail{color:#9abbb2;font-size:11px;margin-top:4px}.session-row button{background:#2b514b;border:1px solid #467d6c;color:#ccf2e1;border-radius:9px;padding:9px 11px;font-size:12px;font-weight:700}.session-row button[disabled]{opacity:.6}.session-empty{color:var(--muted);font-size:13px;text-align:center;padding:20px}.status-warning{color:#e8ac87}@media(min-width:650px){.app-shell{padding-top:32px}.mic-button{width:100px;height:100px}}@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 
 .new-session-primary{display:flex;align-items:center;justify-content:center;gap:9px;width:100%;margin:14px 0 0;padding:13px 8px;border:1px solid #9ee9cd;background:#c9f5e2;color:#07513f;border-radius:12px;font-weight:850;font-size:13px;letter-spacing:.1px;min-height:49px}.new-session-primary:active{background:#a7e9ce}.action-row{grid-template-columns:repeat(2,minmax(0,1fr))}.voice-fallback{margin-top:14px;padding-top:12px;border-top:1px solid #274246}.voice-fallback button{border-radius:10px;padding:10px 8px;min-height:39px;font-size:12px;font-weight:700;margin:3px;border:1px solid #3c6860;background:#1c3a38;color:#c9f9e6}.voice-fallback .dictation-btn{border-color:#4a8b76;background:#245146}.voice-fallback p{font-size:11px;line-height:1.5;color:#9dbdb3;margin:9px 0 0}.voice-fallback strong{color:#d6f0e4}
+
+[hidden]{display:none!important}
+.review-section{border:1px solid #e1a85c;background:#30291e;border-radius:17px;margin-top:18px;padding:18px 15px;color:#f9ede0}
+.review-section h2{font-size:17px;margin:0 0 7px}
+.review-description{font-size:13px;line-height:1.6;color:#f4d6ab;margin:0 0 13px}
+.review-items{display:flex;flex-direction:column;gap:8px}
+.review-item{display:grid;grid-template-columns:25px 1fr auto;align-items:center;gap:8px;background:#1b2928;border:1px solid #52615b;border-radius:11px;padding:8px 10px;font-size:14px}
+.review-item .num{color:#b0c5bf}
+.review-item .good{color:#b5f1cf;font-variant-numeric:tabular-nums}
+.review-item.bad{background:#442c29;border-color:#df8c74;grid-template-columns:25px 1fr}
+.review-item.bad label{font-size:12px;color:#ffe2d0;display:block;margin-bottom:5px}
+.review-item.bad input{width:100%;background:#fff9eb;color:#2d2020;border:2px solid #efae91;border-radius:8px;min-height:44px;font-size:17px;padding:9px}
+.review-item.bad input.valid{border-color:#5ecb93}
+.review-preview{font-size:12px;line-height:1.6;color:#f9d5a9;margin:13px 0}
+.review-actions{display:flex;gap:8px;flex-wrap:wrap}
+.review-actions button{border:0;border-radius:11px;min-height:46px;padding:10px 13px;font-weight:750;font-size:13px}
+.review-confirm{background:#42dfaa;color:#07342a;flex:1}
+.review-confirm:disabled{background:#6b7e79;color:#253331;opacity:.65}
+.review-discard{background:#53433d;color:#fff1ea}
+
 </style>
   <title>Máy tính giọng nói | Voice Calculator</title>
 </head>
@@ -24,7 +44,7 @@
     <header class="topbar">
       <div class="brand"><div class="brand-mark" aria-hidden="true">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5m-4 0h8"/></svg></div>
-        <div><div class="brand-title">MÁY TÍNH GIỌNG NÓI</div><div class="brand-caption">Tiếng Việt · Miễn phí</div></div>
+        <div><div class="brand-title">MÁY TÍNH GIỌNG NÓI</div><div class="brand-caption">Tiếng Việt · Miễn phí · v1.4</div></div>
       </div>
       <button class="icon-button" id="openSessions" aria-label="Xem phiên tính đã lưu" title="Phiên tính đã lưu">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="12" cy="12" r="9"/><path d="M12 6v6l4 2"/></svg>
@@ -68,6 +88,17 @@
           <input id="manualInput" name="amount" enterkeyhint="done" autocomplete="off" placeholder="VD: 12500 hoặc cộng năm ngàn" required />
           <button type="submit" aria-label="Thêm phép tính">Thêm <span aria-hidden="true">＋</span></button>
         </form>
+      </section>
+
+      <section class="review-section" id="reviewSection" aria-live="polite" hidden>
+        <h2>Kiểm tra số iPhone nghe sai</h2>
+        <p id="reviewSummary" class="review-description"></p>
+        <div id="reviewItems" class="review-items"></div>
+        <p id="reviewPreview" class="review-preview"></p>
+        <div class="review-actions">
+          <button id="reviewConfirm" type="button" class="review-confirm" disabled>Xác nhận & tính</button>
+          <button id="reviewDiscard" type="button" class="review-discard">Bỏ câu này</button>
+        </div>
       </section>
 
       <section class="history-section">
@@ -277,6 +308,29 @@ function parseTranscript(text) {
   return out;
 }
 
+// If dictation has one mistranscribed segment, preserve all recognized additions
+// in a confirmation draft instead of rejecting the entire utterance.
+// Do not guess an ambiguous word such as "size" -> 6 or 66.
+function parseSingleAddition(text) {
+  const items=parseTranscript(text);
+  if(items.length!==1 || items[0].command || items[0].op!=='+' || items[0].percent)
+    throw new Error('Mỗi khoản phải là một số được xác định rõ');
+  return items[0];
+}
+function makeReviewDraft(text) {
+  let normalized=fold(text).replace(/[＋﹢]/g,'+');
+  normalized=normalized.replace(/\b(cong them|cong vao|them vao)\b/g,'cong')
+    .replace(/\b(bang bao nhieu|bang may|bang|ket qua|duoc|tiep tuc|tiep theo)\b/g,' ').trim();
+  // Partial confirmation only safe for pure additions; no silent reorder or miscalculation.
+  if(/\b(tru|nhan|chia|bot)\b|[-*/÷×]/.test(normalized))return null;
+  if(!(/\bcong\b|\+/.test(normalized)))return null;
+  const pieces=normalized.split(/\bcong\b|\+/).map(t=>t.trim()).filter(Boolean);
+  if(pieces.length<2||pieces.length>100)return null;
+  const statuses=pieces.map(t=>{try{return parseSingleAddition(t)}catch(e){return null}});
+  if(!statuses.some(x=>x===null)||!statuses.some(Boolean))return null;
+  return {original:text,pieces};
+}
+
 function calculate(entries) {
   let value=0;
   return entries.map((entry,index)=>{
@@ -302,6 +356,8 @@ function formatMoney(value) {
 
 const $ = id=>document.getElementById(id);
 const STORAGE_KEY='voice-calculator-v1';
+const REVIEW_KEY='voice-calculator-v1-review';
+let pendingReview=null;
 const icons={edit:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L9 17l-4 1 1-4z"/></svg>'};
 let entries=[],archives=[],sessionStarted=Date.now();
 let recognition=null,wantListening=false,recognitionRunning=false,restartTimer=null,toastTimer=null;
@@ -327,12 +383,98 @@ function render(){
  $('historyList').innerHTML=calculated.map((e,i)=>`<div class="history-item" data-row="${i}"><div class="history-index">${i+1}</div><div class="history-amount"><div class="history-main">${formatOp(e.op)} ${formatMoney(e.amount)}${e.percent?'%':''}</div><div class="history-source" title="${escaped(e.spoken||'')}">${escaped(e.spoken|| (e.source==='manual'?'Nhập tay':'Giọng nói'))}</div></div><div class="history-right"><span class="history-result">= ${formatMoney(e.result)}</span><button type="button" class="edit-btn" data-edit="${i}" aria-label="Sửa khoản ${i+1}">${icons.edit}</button></div></div>`).reverse().join('');
  document.querySelectorAll('[data-edit]').forEach(b=>b.addEventListener('click',()=>openEdit(Number(b.dataset.edit))));
 }
-function addEntries(newEntries,source){if(newEntries?.[0]?.command==='undo'){undo();return;}
- const mapped=newEntries.map(e=>({...e,source,created:Date.now()}));
- try{calculate(entries.concat(mapped));}catch(e){showToast(e.message);return;}
- entries.push(...mapped);save();render();showToast(`Đã thêm ${mapped.length} khoản`);
+function saveReview(){
+  try{if(pendingReview)localStorage.setItem(REVIEW_KEY,JSON.stringify(pendingReview));
+    else localStorage.removeItem?.(REVIEW_KEY);}catch(e){showToast('Không thể lưu câu đang kiểm tra');}
 }
-function parseAndAdd(text,source){try{addEntries(parseTranscript(text),source);$('heardText').textContent=text;$('heardText').classList.remove('live');return true;}catch(e){$('heardText').textContent=`Chưa ghi: ${text}`;$('heardText').classList.remove('live');warning('Không hiểu rõ số: '+e.message+'. Nhập tay để sửa, hoặc đọc lại.');showToast('Chưa cộng số chưa rõ');return false;}}
+function reviewStatus(){
+  if(!pendingReview)return {valid:[],errors:[]};
+  const valid=[],errors=[];
+  pendingReview.pieces.forEach((p,i)=>{
+    try{valid.push({index:i,entry:parseSingleAddition(p)});}catch(e){errors.push({index:i,why:e.message});}
+  });
+  return {valid,errors};
+}
+function updateReviewSummary(){
+  if(!pendingReview)return;
+  const {valid,errors}=reviewStatus();
+  const subtotal=valid.reduce((sum,x)=>sum+x.entry.amount,0);
+  $('reviewSummary').textContent=`Đã nhận rõ ${valid.length} khoản. Còn ${errors.length} khoản cần sửa; chưa cộng vào tổng để tránh sai.`;
+  $('reviewPreview').textContent=errors.length
+    ?`Tạm tính phần đã đọc rõ: ${formatMoney(subtotal)} Ft. Đây CHƯA phải kết quả cuối.`
+    :`Đã rõ ${valid.length} khoản · Tổng câu này: ${formatMoney(subtotal)} Ft. Chạm Xác nhận & tính.`;
+  $('reviewConfirm').disabled=errors.length!==0;
+  document.querySelectorAll('[data-review-index]').forEach(input=>{
+    const i=Number(input.dataset.reviewIndex);const good=!errors.some(x=>x.index===i);
+    input.classList.toggle('valid',good);
+    input.setAttribute('aria-invalid',String(!good));
+  });
+}
+function renderReview(){
+  const section=$('reviewSection');
+  if(!pendingReview){section.hidden=true;$('reviewItems').innerHTML='';return;}
+  section.hidden=false;
+  const errors=reviewStatus().errors.map(x=>x.index);
+  $('reviewItems').innerHTML=pendingReview.pieces.map((p,i)=>{
+    if(errors.includes(i))return `<div class="review-item bad"><span class="num">${i+1}</span><div><label for="review-value-${i}">Khoản chưa rõ – sửa số dưới đây:</label><input id="review-value-${i}" data-review-index="${i}" value="${escaped(p)}" autocomplete="off" aria-label="Sửa khoản ${i+1}" /></div></div>`;
+    const e=parseSingleAddition(p);
+    return `<div class="review-item"><span class="num">${i+1}</span><span>${escaped(p)}</span><strong class="good">${formatMoney(e.amount)}</strong></div>`;
+  }).join('');
+  document.querySelectorAll('[data-review-index]').forEach(input=>input.addEventListener('input',()=>{
+    pendingReview.pieces[Number(input.dataset.reviewIndex)]=input.value.trim();
+    saveReview();updateReviewSummary();
+  }));
+  updateReviewSummary();
+}
+function confirmReview(){
+  if(!pendingReview)return;
+  const {errors}=reviewStatus();
+  if(errors.length){showToast('Vui lòng sửa các khoản chưa rõ');return;}
+  try{
+    const parsed=pendingReview.pieces.map(t=>parseSingleAddition(t));
+    if(!addEntries(parsed,'corrected'))return;
+    pendingReview=null;saveReview();renderReview();
+    $('manualInput').value='';warning('');$('heardText').textContent='Đã xác nhận toàn bộ các khoản';
+  }catch(e){showToast('Chưa thể tính: '+e.message);}
+}
+function discardReview(){
+  if(!pendingReview)return;
+  if(!confirm('Bỏ câu đang kiểm tra? Các số trong câu này chưa được cộng.'))return;
+  pendingReview=null;saveReview();renderReview();warning('');showToast('Đã bỏ câu chưa xác nhận');
+}
+function addEntries(newEntries,source){
+  if(newEntries?.[0]?.command==='undo'){undo();return true;}
+  const mapped=newEntries.map(e=>({...e,source,created:Date.now()}));
+  try{calculate(entries.concat(mapped));}catch(e){showToast(e.message);return false;}
+  entries.push(...mapped);save();render();showToast(`Đã thêm ${mapped.length} khoản`);
+  return true;
+}
+function parseAndAdd(text,source){
+  if(source==='voice' && pendingReview){
+    warning('Bạn còn một câu cần sửa bên dưới. Chưa ghi số mới để tránh nhầm.');
+    showToast('Vui lòng xác nhận câu chưa rõ');return false;
+  }
+  try{
+    const parsed=parseTranscript(text);
+    if(!addEntries(parsed,source))return false;
+    if(pendingReview){pendingReview=null;saveReview();renderReview();}
+    $('heardText').textContent=text;$('heardText').classList.remove('live');warning('');return true;
+  }catch(e){
+    $('heardText').textContent=`Cần kiểm tra: ${text}`;$('heardText').classList.remove('live');
+    const draft=makeReviewDraft(text);
+    if(draft){
+      pendingReview=draft;saveReview();renderReview();
+      const {errors}=reviewStatus();
+      warning(`Đã nhận ${draft.pieces.length-errors.length} số, có ${errors.length} khoản nghe sai. Sửa riêng khoản đó ở phần màu vàng bên dưới rồi xác nhận. Không khoản nào bị bỏ hoặc cộng thiếu.`);
+      $('reviewSection').scrollIntoView?.({behavior:'smooth',block:'nearest'});
+      showToast('Có một khoản cần sửa trước khi tính');
+    }else{
+      warning('Không hiểu rõ số: '+e.message+'. Văn bản vẫn nằm trong ô nhập để bạn sửa, không bị xóa.');
+      showToast('Chưa cộng số chưa rõ');
+    }
+    return false;
+  }
+}
 function undo(){if(!entries.length)return;entries.pop();save();render();showToast('Đã hoàn tác khoản cuối');}
 function clearVoiceWatchdogs(){
   clearTimeout(voiceStartWatchdog);clearTimeout(voiceResultWatchdog);
@@ -350,8 +492,8 @@ function stopSpeech(){
 }
 function startSpeech(){
   if(!SpeechAPI){
-    voiceHelp('Trình duyệt hiện tại không hỗ trợ nhận dạng giọng nói trực tiếp.');
-    $('manualInput').focus();return;
+    voiceHelp('Bản web iPhone không được cấp API nhận giọng nói. Nút này chỉ mở bàn phím; hãy nhấn micro trên bàn phím iPhone.');
+    $('manualInput').focus();$('manualInput').scrollIntoView?.({behavior:'smooth',block:'center'});return;
   }
   if(!window.isSecureContext){voiceHelp('Micro chỉ hoạt động qua HTTPS.');return;}
   warning('');consecutiveSilentSessions=0;wantListening=true;startRecognition();
@@ -459,8 +601,9 @@ function onEdit(event){event.preventDefault();if(editIndex<0)return;try{
  calculate(entries.map((e,i)=>i===editIndex?modified:e));entries[editIndex]=modified;save();render();$('editDialog').close();showToast('Đã cập nhật và tính lại tổng');
  }catch(e){showToast('Không thể lưu: '+e.message);}}
 function newSession(){
-  if(entries.length&&!confirm('Lưu phép tính hiện tại và bắt đầu phép tính mới?'))return;
+  if((entries.length||pendingReview)&&!confirm('Lưu phép tính hiện tại và bắt đầu phép tính mới? Câu chưa được xác nhận sẽ bị bỏ.'))return;
   stopSpeech();
+  pendingReview=null;saveReview();renderReview();
   if(entries.length){
     const calculated=calculate(entries);
     archives.unshift({started:sessionStarted,ended:Date.now(),entries:structuredClone(entries),total:calculated.at(-1)?.result||0});
@@ -488,7 +631,7 @@ async function copyTotal(){const value=calculate(entries).at(-1)?.result||0;try{
 $('micButton').addEventListener('click',()=>wantListening?stopSpeech():startSpeech());
 $('dictationButton').addEventListener('click',()=>{
   stopSpeech();$('manualInput').focus();
-  warning('Bấm biểu tượng micro trên bàn phím iPhone, đọc các số, sau đó bấm Thêm để tính.');
+  warning('Bấm biểu tượng micro trên bàn phím iPhone, đọc các số, rồi bấm Thêm. Nếu có chữ nhận sai, chỉ sửa khoản được đánh dấu ở khung vàng.');
   setStatus('Đọc bằng bàn phím iPhone');
 });
 $('copySafariButton').addEventListener('click',async()=>{
@@ -497,6 +640,8 @@ $('copySafariButton').addEventListener('click',async()=>{
 });
 $('undoButton').addEventListener('click',undo);
 $('newSessionButton').addEventListener('click',newSession);
+$('reviewConfirm').addEventListener('click',confirmReview);
+$('reviewDiscard').addEventListener('click',discardReview);
 $('exportButton').addEventListener('click',exportCsv);
 $('copyTotal').addEventListener('click',copyTotal);
 $('openSessions').addEventListener('click',showSessions);
@@ -507,6 +652,14 @@ $('manualForm').addEventListener('submit',e=>{e.preventDefault();const s=$('manu
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&wantListening){stopSpeech();warning('Đã tạm dừng micro vì ứng dụng chuyển sang nền. Chạm micro để tiếp tục.');}});
 window.addEventListener('pagehide',()=>{if(wantListening)stopSpeech();});
 load();render();
+try{
+  const savedReview=JSON.parse(localStorage.getItem(REVIEW_KEY)||'null');
+  if(savedReview&&Array.isArray(savedReview.pieces)&&savedReview.pieces.length>=2&&savedReview.pieces.length<=100){
+    pendingReview={original:String(savedReview.original||''),pieces:savedReview.pieces.map(String)};
+    renderReview();
+    warning('Có một câu tính chưa rõ từ lần trước. Sửa khoản chưa rõ và xác nhận bên dưới.');
+  }
+}catch(e){pendingReview=null;}
 if(!SpeechAPI){voiceHelp('Trình duyệt không có công nghệ nhận dạng giọng nói.');}
 else if(isIOSDevice && /ChatGPT|CriOS|FxiOS|EdgiOS/i.test(navigator.userAgent||'')){
   warning('Để nhận giọng nói ổn định hơn trên iPhone, nên mở ứng dụng bằng Safari thay vì trình duyệt nhúng.');
