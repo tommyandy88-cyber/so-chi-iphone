@@ -95,7 +95,13 @@ async def test_vietnamese_speech():
         import numpy as np
         samples=np.frombuffer(raw,dtype=np.int8).astype(np.float32)/127.0
         # Include silence before/after so voice activity boundaries can resolve.
-        samples=np.concatenate((np.zeros(4800,dtype=np.float32),samples,np.zeros(16000,dtype=np.float32)))
+        word=samples.copy()
+        # A single synthetic 0.75s word can be rejected by VAD; try a
+        # 3-word utterance with natural pauses, retaining the original sample.
+        samples=np.concatenate((np.zeros(8000,dtype=np.float32),
+            word,np.zeros(6000,dtype=np.float32),
+            word,np.zeros(6000,dtype=np.float32),
+            word,np.zeros(18000,dtype=np.float32)))
         observed=[]
         class ProbeListener(TranscriptEventListener):
             def on_line_text_changed(self,event):
@@ -110,10 +116,15 @@ async def test_vietnamese_speech():
             t.start()
             for i in range(0,len(samples),1600):
                 t.add_audio(samples[i:i+1600].tolist(),16000)
+            transcript=t.update_transcription()
+            inspect={"type":type(transcript).__name__,
+                     "repr":repr(transcript)[:450]}
+            if hasattr(transcript,"lines"):
+                inspect["lines"]=[str(getattr(x,"text",""))[:120] for x in transcript.lines][:10]
             t.stop()
             return {"test_ready":True,"audio_seconds":round(len(samples)/16000,2),
                     "events":observed[-10:],
-                    "event_count":len(observed)}
+                    "event_count":len(observed),"transcript":inspect}
         finally:t.close()
     try:
         async with active_session:
