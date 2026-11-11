@@ -134,7 +134,8 @@ async def receive_audio(ws: WebSocket):
             transcriber=await asyncio.to_thread(
                 Transcriber,model_path=str(MODEL_PATH),model_arch=MODEL_ARCH)
             stream=transcriber.create_stream(update_interval=.25)
-            stream.add_listener(Listener())
+            listener=Listener()  # Keep a strong reference for the whole WS session.
+            stream.add_listener(listener)
             await asyncio.to_thread(stream.start)
             send_task=asyncio.create_task(send_results())
             await ws.send_json({"type":"ready","engine":"moonshine-tiny-streaming-vi"})
@@ -167,7 +168,12 @@ async def receive_audio(ws: WebSocket):
         except WebSocketDisconnect:
             pass
         except Exception as exc:
-            enqueue({"type":"error","message":"Nhận dạng giọng nói bị gián đoạn: "+type(exc).__name__})
+            message={"type":"error","message":"Nhận dạng giọng nói bị gián đoạn: "+type(exc).__name__}
+            if send_task:
+                enqueue(message)
+            else:
+                try: await ws.send_json(message)
+                except Exception: pass
         finally:
             if stream:
                 try:await asyncio.to_thread(stream.stop)
