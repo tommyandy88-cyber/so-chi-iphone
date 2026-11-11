@@ -44,7 +44,7 @@
     <header class="topbar">
       <div class="brand"><div class="brand-mark" aria-hidden="true">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5m-4 0h8"/></svg></div>
-        <div><div class="brand-title">MÁY TÍNH GIỌNG NÓI</div><div class="brand-caption">Tiếng Việt · Miễn phí · v1.7</div></div>
+        <div><div class="brand-title">MÁY TÍNH GIỌNG NÓI</div><div class="brand-caption">Tiếng Việt · Miễn phí · v1.8</div></div>
       </div>
       <button class="icon-button" id="openSessions" aria-label="Xem phiên tính đã lưu" title="Phiên tính đã lưu">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="12" cy="12" r="9"/><path d="M12 6v6l4 2"/></svg>
@@ -273,8 +273,10 @@ function parseTranscript(text) {
     .replace(/\b(tiep theo|tiep tuc)\b/g,' ')
     .replace(/\b(tinh |so tien |tong la |ket qua |duoc |them )\b/g,' ')
     .replace(/\s+/g,' ').trim();
-  // Commas separating words are new amounts, but 12,500 is a single value.
+  // Sentence punctuation from Vietnamese speech models separates amounts,
+  // while 12.500 or 12,500 remains a single numeric value.
   normalized=normalized.replace(/(?<!\d)[,;]+|[,;]+(?!\d)/g,' |+| ');
+  normalized=normalized.replace(/\.\s*(?=\s|$)/g,' |+| ');
   // Speech services may return mathematical symbols instead of Vietnamese words.
   // Accept 1+2, 1 + 2, 10000-2000, multiplication and division.
   normalized=normalized.replace(/[＋﹢]/g,'+').replace(/[−–—]/g,'-').replace(/[×✕]/g,'*').replace(/÷/g,'/');
@@ -502,7 +504,8 @@ function disposeFreeVoice(state,graceful=false){
         }catch(e){}
       };
       state.ws.send(JSON.stringify({type:'stop'}));
-      setTimeout(()=>{try{state.ws.close(1000);}catch(e){}},1600);
+      setStatus('Đang xử lý câu cuối vừa đọc…');
+      setTimeout(()=>{try{state.ws.close(1000);}catch(e){}},30000);
     }else state.ws.close(1000);}catch(e){}
   }
 }
@@ -616,6 +619,10 @@ async function startFreeSpeech(){
         // Only final Vosk utterances change the total, avoiding repeated partials.
         parseAndAdd(data.text,'voice');
         if(wantListening)setStatus('Đang nghe · tiếp tục đọc',true);
+      }
+      if(data.type==='no-match'){
+        warning(data.message||'Đã thu âm nhưng không nhận diện được số. Không có khoản nào bị cộng nhầm.');
+        setStatus('Đã nghe nhưng chưa nhận được số',true);
       }
       if(data.type==='error'){
         warning(data.message||'Bộ nhận giọng nói báo lỗi.');
