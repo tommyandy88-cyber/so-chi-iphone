@@ -44,7 +44,7 @@
     <header class="topbar">
       <div class="brand"><div class="brand-mark" aria-hidden="true">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5m-4 0h8"/></svg></div>
-        <div><div class="brand-title">MÁY TÍNH GIỌNG NÓI</div><div class="brand-caption">Tiếng Việt · Miễn phí · v1.8</div></div>
+        <div><div class="brand-title">MÁY TÍNH GIỌNG NÓI</div><div class="brand-caption">Tiếng Việt · Phím tắt Apple · v2.0</div></div>
       </div>
       <button class="icon-button" id="openSessions" aria-label="Xem phiên tính đã lưu" title="Phiên tính đã lưu">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="12" cy="12" r="9"/><path d="M12 6v6l4 2"/></svg>
@@ -73,7 +73,8 @@
         <div class="voice-fallback">
           <button id="dictationButton" class="dictation-btn" type="button">Dùng micro bàn phím iPhone</button>
           <button id="copySafariButton" class="copy-url-btn" type="button">Sao chép link để mở Safari</button>
-          <p>Micro lớn trên iPhone dùng bộ nhận dạng tiếng Việt riêng. Khi đèn chuyển sang “Đang nghe”, cứ đọc số; chạm lại để dừng. Không cần bàn phím.</p>
+          <p>Chạm nút lớn để mở <strong>Phím tắt Apple</strong>, đọc dãy số rồi nhấn xong. Kết quả tự chuyển về máy tính. Không phí AI, không cần ký ứng dụng hàng tuần.</p>
+          <a id="setupShortcutLink" style="display:inline-block;color:#bff5e1;margin:8px auto 0;font-size:13px;" href="/huong-dan-phim-tat.html">Cài micro Apple miễn phí (một lần)</a>
         </div>
       </section>
 
@@ -659,7 +660,14 @@ function stopSpeech(flush=true){
   recognition=null;recognitionRunning=false;
 }
 function startSpeech(){
-  if(isIOSDevice){startFreeSpeech();return;}
+  if(isIOSDevice){
+    // iOS Shortcuts invokes Apple's trusted on-device speech dictation.
+    // It returns a single encoded phrase through an HTTPS URL after Done.
+    warning('');
+    setStatus('Đang mở micro của Apple…');
+    window.location.href='shortcuts://run-shortcut?name=Kanaan%20Voice%20Calc';
+    return;
+  }
   if(!SpeechAPI){
     voiceHelp('Bản web iPhone không được cấp API nhận giọng nói. Nút này chỉ mở bàn phím; hãy nhấn micro trên bàn phím iPhone.');
     $('manualInput').focus();$('manualInput').scrollIntoView?.({behavior:'smooth',block:'center'});return;
@@ -821,6 +829,36 @@ $('manualForm').addEventListener('submit',e=>{e.preventDefault();const s=$('manu
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&wantListening){stopSpeech();warning('Đã tạm dừng micro vì ứng dụng chuyển sang nền. Chạm micro để tiếp tục.');}});
 window.addEventListener('pagehide',()=>{if(wantListening)stopSpeech();});
 load();render();
+// Native iOS Shortcuts Dictate Text returns a URL-encoded phrase to Safari.
+// Remove the query first so page refresh never adds the same numbers twice.
+// Persist the successful operation through the existing localStorage data.
+function receiveAppleShortcutsDictation(){
+  const params=new URLSearchParams(location.search);
+  if(!params.has('dictation'))return;
+  const spoken=(params.get('dictation')||'').trim();
+  params.delete('dictation');
+  params.delete('source');
+  const clean=location.pathname+(params.toString()?'?'+params.toString():'')+location.hash;
+  history.replaceState(history.state,'',clean);
+  if(!spoken){
+    warning('Apple không trả về lời nói. Chạm nút lớn và thử đọc lại.');
+    return;
+  }
+  if(spoken.length>2000){
+    warning('Bài đọc quá dài. Hãy chia thành những lượt ngắn hơn.');
+    return;
+  }
+  const accepted=parseAndAdd(spoken,'apple-shortcuts');
+  if(accepted){
+    setStatus('Đã nhập giọng nói bằng Apple',false);
+    showToast('Đã tính số từ micro Apple');
+  }else{
+    // For ambiguous dictation do not guess; keep raw text editable.
+    $('manualInput').value=spoken;
+    setStatus('Kiểm tra câu Apple đã nghe',false);
+  }
+}
+receiveAppleShortcutsDictation();
 try{
   const savedReview=JSON.parse(localStorage.getItem(REVIEW_KEY)||'null');
   if(savedReview&&Array.isArray(savedReview.pieces)&&savedReview.pieces.length>=2&&savedReview.pieces.length<=100){
