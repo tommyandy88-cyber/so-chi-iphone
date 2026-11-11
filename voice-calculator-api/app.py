@@ -17,7 +17,7 @@ app=FastAPI(title="Vietnamese Voice Calculator Whisper STT",docs_url=None,redoc_
 APP_ORIGIN="https://may-tinh-giong-noi-vi.onrender.com"
 MAX_SESSION=600
 LOCK=asyncio.Lock()
-HINT="Số tiền Việt Nam. Mười lăm cộng mười chín cộng mười bảy. Một ngàn, hai ngàn rưỡi, mười hai ngàn, trừ, nhân, chia, phần trăm."
+HINT="Đây là phép tính số tiền bằng tiếng Việt: cộng, trừ, nhân, chia, nghìn, ngàn, triệu, phần trăm."
 
 def transcribe(samples):
     if len(samples)<4800:return ""
