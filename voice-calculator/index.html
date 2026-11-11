@@ -44,7 +44,7 @@
     <header class="topbar">
       <div class="brand"><div class="brand-mark" aria-hidden="true">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5m-4 0h8"/></svg></div>
-        <div><div class="brand-title">MÁY TÍNH GIỌNG NÓI</div><div class="brand-caption">Tiếng Việt · Miễn phí · v1.6</div></div>
+        <div><div class="brand-title">MÁY TÍNH GIỌNG NÓI</div><div class="brand-caption">Tiếng Việt · Miễn phí · v1.7</div></div>
       </div>
       <button class="icon-button" id="openSessions" aria-label="Xem phiên tính đã lưu" title="Phiên tính đã lưu">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="12" cy="12" r="9"/><path d="M12 6v6l4 2"/></svg>
@@ -485,7 +485,7 @@ let freeVoice=null,freeStarting=false,freeVoiceGeneration=0;
 function disposeFreeVoice(state,graceful=false){
   if(!state||state.disposed)return;
   state.disposed=true;
-  clearTimeout(state.connectTimeout);
+  clearTimeout(state.connectTimeout);clearTimeout(state.audioWatchdog);
   if(state.processor){try{state.processor.disconnect();state.processor.onaudioprocess=null;}catch(e){}}
   if(state.source){try{state.source.disconnect();}catch(e){}}
   if(state.stream){state.stream.getTracks().forEach(t=>t.stop());}
@@ -543,7 +543,8 @@ async function startFreeSpeech(){
     return;
   }
   const state={stream:null,context:null,source:null,processor:null,ws:null,
-    disposed:false,connected:false,connectTimeout:null,lastSample:0,samplePos:1};
+    disposed:false,connected:false,connectTimeout:null,lastSample:0,samplePos:1,
+    bytesSent:0,framesSent:0,lastServerAudio:0,audioLevel:0,audioWatchdog:null};
   freeVoice=state;
   try{
     // AudioContext is created while processing a real button gesture on iOS.
@@ -560,8 +561,12 @@ async function startFreeSpeech(){
     state.processor=state.context.createScriptProcessor(4096,1,1);
     state.processor.onaudioprocess=ev=>{
       if(state.disposed||!state.connected||state.ws?.readyState!==WebSocket.OPEN)return;
-      try{const buffer=resampleToPcm16(ev.inputBuffer.getChannelData(0),state);
-          if(buffer.byteLength&&state.ws.bufferedAmount<128000)state.ws.send(buffer);}catch(e){}
+      try {
+        const buffer=resampleToPcm16(ev.inputBuffer.getChannelData(0),state);
+        if(buffer.byteLength&&state.ws.bufferedAmount<128000){
+          state.ws.send(buffer);state.bytesSent+=buffer.byteLength;state.framesSent++;
+        }
+      }catch(e){warning('Có lỗi khi gửi âm thanh từ micro: '+String(e?.message||e).slice(0,100));}
     };
     state.source.connect(state.processor);
     state.processor.connect(state.context.destination);
@@ -585,6 +590,22 @@ async function startFreeSpeech(){
         freeStarting=false;warning('');
         setStatus('Đang nghe · cứ đọc các số',true);
         $('heardText').textContent='Đã bật micro. Đọc số để tự tính, chạm lại để dừng.';
+        state.audioWatchdog=setTimeout(()=>{
+          if(state.disposed||gen!==freeVoiceGeneration)return;
+          if(!state.framesSent){
+            warning('Micro đã được cấp quyền nhưng iPhone chưa gửi âm thanh. Kiểm tra Safari và trạng thái thu âm.');
+            setStatus('Không có dữ liệu micro',false);
+          }
+        },6500);
+        return;
+      }
+      if(data.type==='audio-status'){
+        state.lastServerAudio=Number(data.seconds)||0;
+        state.audioLevel=Number(data.level)||0;
+        if(!state.framesSent)warning('Máy chủ đã kết nối nhưng không có âm thanh từ iPhone.');
+        else if(state.audioLevel<1)warning('Máy chủ đã nhận âm thanh nhưng mức tín hiệu rất thấp. Kiểm tra micro iPhone.');
+        else warning('');
+        if(!state.disposed)setStatus('Đã nhận '+state.lastServerAudio.toLocaleString('vi-VN')+' giây âm thanh · đang nhận dạng',true);
         return;
       }
       if(data.type==='partial'&&data.text){
