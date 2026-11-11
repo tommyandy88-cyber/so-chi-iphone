@@ -44,7 +44,7 @@
     <header class="topbar">
       <div class="brand"><div class="brand-mark" aria-hidden="true">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5m-4 0h8"/></svg></div>
-        <div><div class="brand-title">MÁY TÍNH GIỌNG NÓI</div><div class="brand-caption">Tiếng Việt · Miễn phí · v1.4</div></div>
+        <div><div class="brand-title">MÁY TÍNH GIỌNG NÓI</div><div class="brand-caption">Tiếng Việt · Miễn phí · v1.5</div></div>
       </div>
       <button class="icon-button" id="openSessions" aria-label="Xem phiên tính đã lưu" title="Phiên tính đã lưu">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="12" cy="12" r="9"/><path d="M12 6v6l4 2"/></svg>
@@ -73,7 +73,7 @@
         <div class="voice-fallback">
           <button id="dictationButton" class="dictation-btn" type="button">Dùng micro bàn phím iPhone</button>
           <button id="copySafariButton" class="copy-url-btn" type="button">Sao chép link để mở Safari</button>
-          <p>Trên iPhone, nếu micro lớn không phản hồi: mở link trong <strong>Safari</strong>, hoặc dùng micro trên bàn phím ở ô nhập bên dưới rồi bấm <strong>Thêm</strong>.</p>
+          <p>Micro lớn trên iPhone dùng bộ nhận dạng tiếng Việt riêng. Khi đèn chuyển sang “Đang nghe”, cứ đọc số; chạm lại để dừng. Không cần bàn phím.</p>
         </div>
       </section>
 
@@ -476,6 +476,137 @@ function parseAndAdd(text,source){
   }
 }
 function undo(){if(!entries.length)return;entries.pop();save();render();showToast('Đã hoàn tác khoản cuối');}
+
+// iPhone's embedded webkitSpeechRecognition can remain silent even though
+// the property exists. The large button instead records actual microphone
+// PCM and streams it to a free, self-hosted Vietnamese Vosk model.
+const FREE_STT_WS='wss://may-tinh-giong-noi-stt.onrender.com/ws';
+let freeVoice=null,freeStarting=false,freeVoiceGeneration=0;
+function disposeFreeVoice(state,graceful=false){
+  if(!state||state.disposed)return;
+  state.disposed=true;
+  clearTimeout(state.connectTimeout);
+  if(state.processor){try{state.processor.disconnect();state.processor.onaudioprocess=null;}catch(e){}}
+  if(state.source){try{state.source.disconnect();}catch(e){}}
+  if(state.stream){state.stream.getTracks().forEach(t=>t.stop());}
+  if(state.context){try{state.context.close();}catch(e){}}
+  if(state.ws && (state.ws.readyState===WebSocket.OPEN||state.ws.readyState===WebSocket.CONNECTING)){
+    try{if(graceful && state.ws.readyState===WebSocket.OPEN){
+      state.ws.send(JSON.stringify({type:'stop'}));
+      setTimeout(()=>{try{state.ws.close(1000);}catch(e){}},750);
+    }else state.ws.close(1000);}catch(e){}
+  }
+}
+function stopFreeSpeech(){
+  freeVoiceGeneration++;
+  freeStarting=false;
+  const state=freeVoice;freeVoice=null;
+  if(state)disposeFreeVoice(state,true);
+}
+function resampleToPcm16(input,state){
+  const step=state.context.sampleRate/16000;
+  // Persist one sample and the fractional read position across callbacks.
+  const buf=new Float32Array(input.length+1);
+  buf[0]=state.lastSample||0;
+  buf.set(input,1);
+  let pos=state.samplePos??1;
+  const samples=[];
+  while(pos<buf.length-1){
+    const a=Math.floor(pos), frac=pos-a;
+    const x=buf[a]*(1-frac)+buf[a+1]*frac;
+    samples.push(Math.max(-32768,Math.min(32767,Math.round(x<0?x*32768:x*32767))));
+    pos+=step;
+  }
+  state.samplePos=pos-input.length;
+  state.lastSample=buf[buf.length-1];
+  const result=new Int16Array(samples.length);
+  for(let i=0;i<samples.length;i++)result[i]=samples[i];
+  return result.buffer;
+}
+async function startFreeSpeech(){
+  if(freeStarting||freeVoice)return;
+  const gen=++freeVoiceGeneration;
+  wantListening=true;freeStarting=true;warning('');
+  setStatus('Đang xin quyền micro iPhone…',true);
+  if(!navigator.mediaDevices?.getUserMedia || !(window.AudioContext||window.webkitAudioContext)){
+    freeStarting=false;wantListening=false;
+    voiceHelp('Thiết bị không cho phép thu âm trực tiếp trong trang web này.');
+    return;
+  }
+  const state={stream:null,context:null,source:null,processor:null,ws:null,
+    disposed:false,connected:false,connectTimeout:null,lastSample:0,samplePos:1};
+  freeVoice=state;
+  try{
+    // AudioContext is created while processing a real button gesture on iOS.
+    const AC=window.AudioContext||window.webkitAudioContext;
+    state.context=new AC({latencyHint:'interactive'});
+    const contextReady=state.context.resume();
+    state.stream=await navigator.mediaDevices.getUserMedia({
+      audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true,channelCount:1},
+      video:false
+    });
+    await contextReady;
+    if(gen!==freeVoiceGeneration||!wantListening){disposeFreeVoice(state);return;}
+    state.source=state.context.createMediaStreamSource(state.stream);
+    state.processor=state.context.createScriptProcessor(4096,1,1);
+    state.processor.onaudioprocess=ev=>{
+      if(state.disposed||!state.connected||state.ws?.readyState!==WebSocket.OPEN)return;
+      try{const buffer=resampleToPcm16(ev.inputBuffer.getChannelData(0),state);
+          if(buffer.byteLength&&state.ws.bufferedAmount<128000)state.ws.send(buffer);}catch(e){}
+    };
+    state.source.connect(state.processor);
+    state.processor.connect(state.context.destination);
+    setStatus('Micro đã mở · đang kết nối nhận dạng miễn phí…',true);
+    state.ws=new WebSocket(FREE_STT_WS);
+    state.ws.binaryType='arraybuffer';
+    state.connectTimeout=setTimeout(()=>{
+      if(state.disposed||state.connected)return;
+      wantListening=false;stopFreeSpeech();
+      voiceHelp('Micro đã bật nhưng máy chủ nhận giọng nói miễn phí chưa sẵn sàng. Chạm nút lớn để thử lại.');
+    },85000);
+    state.ws.onopen=()=>{
+      if(gen!==freeVoiceGeneration||state.disposed)return;
+      setStatus('Đã kết nối · đang tải bộ nhận dạng…',true);
+    };
+    state.ws.onmessage=ev=>{
+      if(gen!==freeVoiceGeneration||state.disposed)return;
+      let data;try{data=JSON.parse(ev.data);}catch(e){return;}
+      if(data.type==='ready'){
+        clearTimeout(state.connectTimeout);state.connected=true;
+        freeStarting=false;warning('');
+        setStatus('Đang nghe · cứ đọc các số',true);
+        $('heardText').textContent='Đã bật micro. Đọc số để tự tính, chạm lại để dừng.';
+        return;
+      }
+      if(data.type==='partial'&&data.text){
+        $('heardText').textContent=data.text;
+        $('heardText').classList.add('live');
+      }
+      if(data.type==='final'&&data.text){
+        // Only final Vosk utterances change the total, avoiding repeated partials.
+        parseAndAdd(data.text,'voice');
+        if(wantListening)setStatus('Đang nghe · tiếp tục đọc',true);
+      }
+      if(data.type==='error'){
+        warning(data.message||'Bộ nhận giọng nói báo lỗi.');
+      }
+    };
+    state.ws.onerror=()=>{if(!state.disposed)warning('Kết nối nhận dạng miễn phí bị gián đoạn.');};
+    state.ws.onclose=()=>{
+      if(state.disposed||gen!==freeVoiceGeneration)return;
+      wantListening=false;stopFreeSpeech();
+      voiceHelp('Máy chủ nhận giọng nói đã ngắt kết nối. Bạn có thể chạm nút lớn để thử lại.');
+    };
+  }catch(e){
+    if(gen!==freeVoiceGeneration)return;
+    wantListening=false;stopFreeSpeech();
+    const reason=e?.name==='NotAllowedError'?'iPhone chưa cấp quyền micro. Mở Cài đặt > Safari > Micro để kiểm tra.':
+       e?.name==='NotFoundError'?'Không tìm thấy micro trên thiết bị.':
+       'Không mở được micro: '+String(e?.message||e).slice(0,120);
+    voiceHelp(reason);
+  }finally{if(gen===freeVoiceGeneration)freeStarting=false;}
+}
+
 function clearVoiceWatchdogs(){
   clearTimeout(voiceStartWatchdog);clearTimeout(voiceResultWatchdog);
   voiceStartWatchdog=null;voiceResultWatchdog=null;
@@ -485,12 +616,13 @@ function voiceHelp(message){
   setStatus('Micro không trả lời');
 }
 function stopSpeech(){
-  wantListening=false;clearTimeout(restartTimer);clearVoiceWatchdogs();
+  wantListening=false;stopFreeSpeech();clearTimeout(restartTimer);clearVoiceWatchdogs();
   setStatus('Đã tạm dừng');
   if(recognition){try{recognition.abort();}catch(e){try{recognition.stop()}catch(_){}}}
   recognition=null;recognitionRunning=false;
 }
 function startSpeech(){
+  if(isIOSDevice){startFreeSpeech();return;}
   if(!SpeechAPI){
     voiceHelp('Bản web iPhone không được cấp API nhận giọng nói. Nút này chỉ mở bàn phím; hãy nhấn micro trên bàn phím iPhone.');
     $('manualInput').focus();$('manualInput').scrollIntoView?.({behavior:'smooth',block:'center'});return;
@@ -660,7 +792,7 @@ try{
     warning('Có một câu tính chưa rõ từ lần trước. Sửa khoản chưa rõ và xác nhận bên dưới.');
   }
 }catch(e){pendingReview=null;}
-if(!SpeechAPI){voiceHelp('Trình duyệt không có công nghệ nhận dạng giọng nói.');}
+if(!SpeechAPI&&!isIOSDevice){voiceHelp('Trình duyệt không có công nghệ nhận dạng giọng nói.');}
 else if(isIOSDevice && /ChatGPT|CriOS|FxiOS|EdgiOS/i.test(navigator.userAgent||'')){
   warning('Để nhận giọng nói ổn định hơn trên iPhone, nên mở ứng dụng bằng Safari thay vì trình duyệt nhúng.');
 }
