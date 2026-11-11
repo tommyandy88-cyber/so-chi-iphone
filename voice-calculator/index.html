@@ -314,10 +314,19 @@ function parseTranscript(text) {
 // If dictation has one mistranscribed segment, preserve all recognized additions
 // in a confirmation draft instead of rejecting the entire utterance.
 // Do not guess an ambiguous word such as "size" -> 6 or 66.
-function parseSingleAddition(text) {
+function parseReviewPiece(text) {
+  // A speech recognition error can merge two additions into one ambiguous
+  // piece: "100 tập 7" may actually mean "100 cộng 7".
+  // Require explicit user correction, never silently infer the operator.
   const items=parseTranscript(text);
-  if(items.length!==1 || items[0].command || items[0].op!=='+' || items[0].percent)
-    throw new Error('Mỗi khoản phải là một số được xác định rõ');
+  if(!items.length || items.length>20 ||
+      items.some(e=>e.command || e.op!=='+' || e.percent))
+    throw new Error('Chỉ nhập số hoặc các khoản cộng rõ ràng');
+  return items;
+}
+function parseSingleAddition(text) {
+  const items=parseReviewPiece(text);
+  if(items.length!==1) throw new Error('Một khoản phải chứa đúng một số');
   return items[0];
 }
 function makeReviewDraft(text) {
@@ -394,18 +403,19 @@ function reviewStatus(){
   if(!pendingReview)return {valid:[],errors:[]};
   const valid=[],errors=[];
   pendingReview.pieces.forEach((p,i)=>{
-    try{valid.push({index:i,entry:parseSingleAddition(p)});}catch(e){errors.push({index:i,why:e.message});}
+    try{valid.push({index:i,entries:parseReviewPiece(p)});}catch(e){errors.push({index:i,why:e.message});}
   });
   return {valid,errors};
 }
 function updateReviewSummary(){
   if(!pendingReview)return;
   const {valid,errors}=reviewStatus();
-  const subtotal=valid.reduce((sum,x)=>sum+x.entry.amount,0);
-  $('reviewSummary').textContent=`Đã nhận rõ ${valid.length} khoản. Còn ${errors.length} khoản cần sửa; chưa cộng vào tổng để tránh sai.`;
+  const subtotal=valid.reduce((sum,x)=>sum+x.entries.reduce((v,e)=>v+e.amount,0),0);
+  const count=valid.reduce((sum,x)=>sum+x.entries.length,0);
+  $('reviewSummary').textContent=`Đã nhận rõ ${count} khoản. Còn ${errors.length} cụm cần sửa; chưa cộng vào tổng để tránh sai.`;
   $('reviewPreview').textContent=errors.length
     ?`Tạm tính phần đã đọc rõ: ${formatMoney(subtotal)} Ft. Đây CHƯA phải kết quả cuối.`
-    :`Đã rõ ${valid.length} khoản · Tổng câu này: ${formatMoney(subtotal)} Ft. Chạm Xác nhận & tính.`;
+    :`Đã rõ ${count} khoản · Tổng câu này: ${formatMoney(subtotal)} Ft. Chạm Xác nhận & tính.`;
   $('reviewConfirm').disabled=errors.length!==0;
   document.querySelectorAll('[data-review-index]').forEach(input=>{
     const i=Number(input.dataset.reviewIndex);const good=!errors.some(x=>x.index===i);
@@ -419,9 +429,9 @@ function renderReview(){
   section.hidden=false;
   const errors=reviewStatus().errors.map(x=>x.index);
   $('reviewItems').innerHTML=pendingReview.pieces.map((p,i)=>{
-    if(errors.includes(i))return `<div class="review-item bad"><span class="num">${i+1}</span><div><label for="review-value-${i}">Khoản chưa rõ – sửa số dưới đây:</label><input id="review-value-${i}" data-review-index="${i}" value="${escaped(p)}" autocomplete="off" aria-label="Sửa khoản ${i+1}" /></div></div>`;
-    const e=parseSingleAddition(p);
-    return `<div class="review-item"><span class="num">${i+1}</span><span>${escaped(p)}</span><strong class="good">${formatMoney(e.amount)}</strong></div>`;
+    if(errors.includes(i))return `<div class="review-item bad"><span class="num">${i+1}</span><div><label for="review-value-${i}">Cụm chưa rõ – nhập số hoặc phép cộng đúng:</label><input id="review-value-${i}" data-review-index="${i}" value="${escaped(p)}" autocomplete="off" aria-label="Sửa cụm ${i+1}, ví dụ 100 cộng 7" /></div></div>`;
+    const items=parseReviewPiece(p);
+    return `<div class="review-item"><span class="num">${i+1}</span><span>${escaped(p)}</span><strong class="good">${items.map(e=>formatMoney(e.amount)).join(' + ')}</strong></div>`;
   }).join('');
   document.querySelectorAll('[data-review-index]').forEach(input=>input.addEventListener('input',()=>{
     pendingReview.pieces[Number(input.dataset.reviewIndex)]=input.value.trim();
@@ -434,7 +444,7 @@ function confirmReview(){
   const {errors}=reviewStatus();
   if(errors.length){showToast('Vui lòng sửa các khoản chưa rõ');return;}
   try{
-    const parsed=pendingReview.pieces.map(t=>parseSingleAddition(t));
+    const parsed=pendingReview.pieces.flatMap(t=>parseReviewPiece(t));
     if(!addEntries(parsed,'corrected'))return;
     pendingReview=null;saveReview();renderReview();
     $('manualInput').value='';warning('');$('heardText').textContent='Đã xác nhận toàn bộ các khoản';
