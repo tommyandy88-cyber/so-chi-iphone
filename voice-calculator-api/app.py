@@ -121,7 +121,8 @@ async def test_vietnamese_speech():
                      "repr":repr(transcript)[:450]}
             if hasattr(transcript,"lines"):
                 inspect["lines"]=[str(getattr(x,"text",""))[:120] for x in transcript.lines][:10]
-            t.stop()
+            final=t.stop()
+            inspect["after_stop"]=[str(getattr(x,"text",""))[:120] for x in getattr(final,"lines",[])][:10]
             return {"test_ready":True,"audio_seconds":round(len(samples)/16000,2),
                     "events":observed[-10:],
                     "event_count":len(observed),"transcript":inspect}
