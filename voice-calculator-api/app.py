@@ -37,10 +37,12 @@ async def health():
     return {"ready":True,"engine":"whisper-base-int8-vi","paid_api":False}
 
 _test_last=0
+_test_result=None
 @app.get("/health/voice")
 async def voice_test():
-    global _test_last
-    if time.monotonic()-_test_last<30:return {"test_ready":False,"reason":"recently tested"}
+    global _test_last,_test_result
+    if time.monotonic()-_test_last<30:
+        return _test_result if _test_result is not None else {"test_ready":False,"reason":"test running"}
     if LOCK.locked():return {"test_ready":False,"reason":"busy"}
     _test_last=time.monotonic()
     def work():
@@ -51,8 +53,12 @@ async def voice_test():
         return {"test_ready":True,"audio_seconds":round(len(audio)/16000,2),
                 "transcript":transcribe(audio)}
     try:
-        async with LOCK:return await asyncio.wait_for(asyncio.to_thread(work),timeout=50)
-    except Exception as exc:return {"test_ready":False,"error_type":type(exc).__name__,"detail":str(exc)[:160]}
+        async with LOCK:
+            _test_result=await asyncio.wait_for(asyncio.to_thread(work),timeout=50)
+            return _test_result
+    except Exception as exc:
+        _test_result={"test_ready":False,"error_type":type(exc).__name__,"detail":str(exc)[:160]}
+        return _test_result
 
 @app.websocket("/ws")
 async def speech(ws:WebSocket):
