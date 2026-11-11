@@ -492,16 +492,25 @@ function disposeFreeVoice(state,graceful=false){
   if(state.context){try{state.context.close();}catch(e){}}
   if(state.ws && (state.ws.readyState===WebSocket.OPEN||state.ws.readyState===WebSocket.CONNECTING)){
     try{if(graceful && state.ws.readyState===WebSocket.OPEN){
+      // The last spoken phrase is often returned only after FinalResult.
+      // Keep this short-lived socket handler to commit that final phrase.
+      state.ws.onmessage=event=>{
+        try{
+          const item=JSON.parse(event.data);
+          if(item.type==='final' && item.text)parseAndAdd(item.text,'voice');
+          if(item.type==='stopped')state.ws.close(1000);
+        }catch(e){}
+      };
       state.ws.send(JSON.stringify({type:'stop'}));
-      setTimeout(()=>{try{state.ws.close(1000);}catch(e){}},750);
+      setTimeout(()=>{try{state.ws.close(1000);}catch(e){}},1600);
     }else state.ws.close(1000);}catch(e){}
   }
 }
-function stopFreeSpeech(){
+function stopFreeSpeech(flush=true){
   freeVoiceGeneration++;
   freeStarting=false;
   const state=freeVoice;freeVoice=null;
-  if(state)disposeFreeVoice(state,true);
+  if(state)disposeFreeVoice(state,flush);
 }
 function resampleToPcm16(input,state){
   const step=state.context.sampleRate/16000;
@@ -615,8 +624,8 @@ function voiceHelp(message){
   warning(message+' Nếu mở trong ứng dụng ChatGPT, hãy sao chép đường link và mở bằng Safari; hoặc dùng micro trên bàn phím iPhone ở ô nhập bên dưới.');
   setStatus('Micro không trả lời');
 }
-function stopSpeech(){
-  wantListening=false;stopFreeSpeech();clearTimeout(restartTimer);clearVoiceWatchdogs();
+function stopSpeech(flush=true){
+  wantListening=false;stopFreeSpeech(flush);clearTimeout(restartTimer);clearVoiceWatchdogs();
   setStatus('Đã tạm dừng');
   if(recognition){try{recognition.abort();}catch(e){try{recognition.stop()}catch(_){}}}
   recognition=null;recognitionRunning=false;
