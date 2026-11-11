@@ -1,19 +1,9 @@
-"""Warm the MIT-licensed Vietnamese streaming Moonshine model at build time.
-The old Vosk small model is deliberately not used for new recognition.
-"""
+"""Download the permissively licensed multilingual Whisper Base model at build time."""
 from pathlib import Path
-import os
-
+from faster_whisper.utils import download_model
 BASE=Path(__file__).resolve().parent
-os.environ.setdefault("MOONSHINE_VOICE_CACHE",str(BASE/"models"))
-from moonshine_voice import get_model_for_language
-
-def main():
-    path,arch=get_model_for_language("vi")
-    target=Path(path)
-    if not target.is_dir() or not list(target.glob("*.ort")):
-        raise RuntimeError("Missing Vietnamese Moonshine streaming model artifacts")
-    print("Moonshine Vietnamese model downloaded:",target,"architecture:",arch,flush=True)
-
-if __name__=="__main__":
-    main()
+DEST=BASE/"models"/"whisper-base"
+DEST.mkdir(parents=True,exist_ok=True)
+folder=download_model("base",output_dir=str(DEST))
+if not (DEST/"model.bin").is_file(): raise RuntimeError("Whisper base model download incomplete")
+print("WHISPER_MODEL_READY",str(folder),flush=True)
